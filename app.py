@@ -30,6 +30,17 @@ def db_init():
                 type VARCHAR(50) NOT NULL,
                 amount NUMERIC NOT NULL,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            CREATE TABLE IF NOT EXISTS loans (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                principal NUMERIC NOT NULL,
+                interest_rate NUMERIC DEFAULT 5.0,
+                total_owed NUMERIC NOT NULL,
+                amount_paid NUMERIC DEFAULT 0,
+                status VARCHAR(20) DEFAULT 'ACTIVE',
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
 
@@ -113,7 +124,9 @@ def dashboard(user):
         print("2. Deposit Money")
         print("3. Withdraw Money")
         print("4. View Transaction History")
-        print("5. Logout")
+        print("5. Apply for a Loan")       # NEW
+        print("6. Repay a Loan")           # NEW
+        print("7. Logout")
 
         try:
             choice = int(input("Enter your choice: "))
@@ -202,6 +215,120 @@ def dashboard(user):
                         print(f"[{t_time}] {t_type}: ₹{t_amount}")
             
             elif choice == 5:
+                principal = float(input("Enter loan amount requested: ₹"))
+                if principal > 0:
+                    interest_rate = 5.0  # Flat 5% interest
+                    total_owed = principal + (principal * (interest_rate / 100))
+                    
+                    print(f"Bank Offer: {interest_rate}% interest rate.")
+                    print(f"You will owe a total of: ₹{total_owed}")
+                    confirm = input("Type 'yes' to accept: ").strip().lower()
+                    
+                    if confirm == 'yes':
+                        # 1. Give them the money
+                        user.balance += principal
+                        
+                        conn = psycopg2.connect(db_url, sslmode='require')
+                        cursor = conn.cursor()
+                        
+                        # 2. Update their wallet balance
+                        cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
+                        
+                        # 3. Create the loan record
+                        cursor.execute(
+                            "INSERT INTO loans (user_id, principal, total_owed) VALUES (%s, %s, %s)",
+                            (user.id, principal, total_owed)
+                        )
+                        
+                        # 4. Log the transaction
+                        cursor.execute(
+                            "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
+                            (user.id, 'LOAN_DISBURSEMENT', principal)
+                        )
+                        
+                        conn.commit()
+                        conn.close()
+                        print("\nLoan approved! Money has been added to your balance.")
+                    else:
+                        print("\nLoan cancelled.")
+                else:
+                    print("Invalid amount.")
+            
+            elif choice == 6:
+                conn = psycopg2.connect(db_url, sslmode='require')
+                cursor = conn.cursor()
+                
+                # Find all active loans for this user
+                cursor.execute("SELECT id, total_owed, amount_paid FROM loans WHERE user_id=%s AND status='ACTIVE'", (user.id,))
+                active_loans = cursor.fetchall()
+                
+                if not active_loans:
+                    print("\nYou do not have any active loans!")
+                    conn.close()
+                    continue
+                
+                print("\n--- YOUR ACTIVE LOANS ---")
+                for loan in active_loans:
+                    l_id = loan[0]
+                    l_owed = loan[1]
+                    l_paid = loan[2]
+                    l_remaining = l_owed - l_paid
+                    print(f"Loan ID: {l_id} | Total Owed: ₹{l_owed} | Remaining Balance: ₹{l_remaining}")
+                
+                try:
+                    target_loan = int(input("\nEnter the Loan ID you want to pay towards: "))
+                    pay_amount = float(input("Enter amount to pay: ₹"))
+                    
+                    if pay_amount > user.balance:
+                        print("Insufficient balance in your wallet to make this payment!")
+                    elif pay_amount > 0:
+                        # Verify the loan belongs to them and is active
+                        cursor.execute("SELECT total_owed, amount_paid FROM loans WHERE id=%s AND user_id=%s AND status='ACTIVE'", (target_loan, user.id))
+                        loan_data = cursor.fetchone()
+                        
+                        if loan_data:
+                            owed = float(loan_data[0])
+                            paid = float(loan_data[1])
+                            remaining = owed - paid
+                            
+                            # Prevent overpaying
+                            if pay_amount > remaining:
+                                print(f"You only owe ₹{remaining}.")
+                                pay_amount = remaining
+                                
+                            # 1. Deduct from wallet
+                            user.balance -= pay_amount
+                            cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
+                            
+                            # 2. Update loan paid amount
+                            new_paid_total = paid + pay_amount
+                            new_status = 'CLEARED' if new_paid_total >= owed else 'ACTIVE'
+                            
+                            cursor.execute(
+                                "UPDATE loans SET amount_paid=%s, status=%s WHERE id=%s",
+                                (new_paid_total, new_status, target_loan)
+                            )
+                            
+                            # 3. Log the transaction
+                            cursor.execute(
+                                "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
+                                (user.id, 'LOAN_REPAYMENT', pay_amount)
+                            )
+                            
+                            conn.commit()
+                            print(f"\nPayment of ₹{pay_amount} successful!")
+                            if new_status == 'CLEARED':
+                                print("Congratulations! This loan has been fully paid off.")
+                        else:
+                            print("Invalid Loan ID.")
+                    else:
+                        print("Invalid amount.")
+                except ValueError:
+                    print("Please enter valid numbers.")
+                    
+                conn.close()
+            
+            elif choice == 7:
                 print("Logging out...")
                 break
 
