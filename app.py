@@ -22,6 +22,14 @@ def db_init():
                 name TEXT NOT NULL,
                 balance NUMERIC DEFAULT 0,
                 password TEXT NOT NULL
+            );
+            
+            CREATE TABLE IF NOT EXISTS transactions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                type VARCHAR(50) NOT NULL,
+                amount NUMERIC NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
 
@@ -105,7 +113,8 @@ def dashboard(user):
         print("1. View Balance")
         print("2. Deposit Money")
         print("3. Withdraw Money")
-        print("4. Logout")
+        print("4. View Transaction History")
+        print("5. Logout")
 
         try:
             choice = int(input("Enter your choice: "))
@@ -121,9 +130,16 @@ def dashboard(user):
                     conn = psycopg2.connect(db_url, sslmode='require')
                     cursor = conn.cursor()
 
+                    # 1. Update the balance
                     cursor.execute(
                         "UPDATE users SET balance=%s WHERE id=%s",
                         (user.balance, user.id)
+                    )
+
+                    # 2. ADD THIS: Log the deposit in the history!
+                    cursor.execute(
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
+                        (user.id, 'DEPOSIT', amount)
                     )
 
                     conn.commit()
@@ -144,9 +160,16 @@ def dashboard(user):
                     conn = psycopg2.connect(db_url, sslmode='require')
                     cursor = conn.cursor()
 
+                    # 1. Update the balance
                     cursor.execute(
                         "UPDATE users SET balance=%s WHERE id=%s",
                         (user.balance, user.id)
+                    )
+
+                    # 2. ADD THIS: Log the withdrawal in the history!
+                    cursor.execute(
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
+                        (user.id, 'WITHDRAWAL', withdraw)
                     )
 
                     conn.commit()
@@ -157,6 +180,29 @@ def dashboard(user):
                     print("Invalid Amount")
 
             elif choice == 4:
+                print("\n--- TRANSACTION HISTORY ---")
+                conn = psycopg2.connect(db_url, sslmode='require')
+                cursor = conn.cursor()
+
+                # Fetch all transactions for this specific user, ordered by newest first
+                cursor.execute(
+                    "SELECT type, amount, timestamp FROM transactions WHERE user_id=%s ORDER BY timestamp DESC",
+                    (user.id,)
+                )
+                
+                history = cursor.fetchall()
+                conn.close()
+
+                if not history:
+                    print("No transactions found.")
+                else:
+                    for record in history:
+                        t_type = record[0]
+                        t_amount = record[1]
+                        t_time = record[2]
+                        print(f"[{t_time}] {t_type}: ₹{t_amount}")
+            
+            elif choice == 5:
                 print("Logging out...")
                 break
 
