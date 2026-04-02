@@ -2,7 +2,7 @@ import os
 import psycopg2
 from dotenv import load_dotenv
 
-# Load environment variables
+# Grab the database connection string from our hidden .env file
 load_dotenv()
 db_url = os.getenv("DATABASE_URL")
 
@@ -10,7 +10,7 @@ if not db_url:
     print("Error: DATABASE_URL not found. Check your .env file.")
     exit()
 
-# ---------------- DATABASE INIT ----------------
+# Make sure our database has the right tables ready to go before the app starts
 def db_init():
     try:
         conn = psycopg2.connect(db_url, sslmode='require')
@@ -41,7 +41,7 @@ def db_init():
         exit()
 
 
-# ---------------- USER CLASS ----------------
+# A simple container to hold the logged-in user's details so we can pass them around easily
 class User:
     def __init__(self, name, password, user_id=None, balance=0):
         self.name = name
@@ -55,7 +55,6 @@ class User:
         print("Balance:", self.balance)
 
 
-# ---------------- LOGIN ----------------
 def login():
     name = input("Enter Username: ").strip()
     passw = input("Enter Password: ").strip()
@@ -72,6 +71,7 @@ def login():
         user_data = cursor.fetchone()
         conn.close()
 
+        # If we found a match, create a User object so the app remembers who is logged in
         if user_data:
             user = User(user_data[1], user_data[3], user_data[0], user_data[2])
             print("\nLogin Successful!")
@@ -84,7 +84,6 @@ def login():
         return None
 
 
-# ---------------- CREATE ACCOUNT ----------------
 def createAccount():
     n = input("Enter Name: ").strip()
     p = input("Enter Password: ").strip()
@@ -106,7 +105,7 @@ def createAccount():
         print(f"Account Creation Error: {e}")
 
 
-# ---------------- DASHBOARD ----------------
+# The main menu where logged-in users can manage their money
 def dashboard(user):
     while True:
         print("\n--- DASHBOARD ---")
@@ -130,13 +129,13 @@ def dashboard(user):
                     conn = psycopg2.connect(db_url, sslmode='require')
                     cursor = conn.cursor()
 
-                    # 1. Update the balance
+                    # Update their main balance first
                     cursor.execute(
                         "UPDATE users SET balance=%s WHERE id=%s",
                         (user.balance, user.id)
                     )
 
-                    # 2. ADD THIS: Log the deposit in the history!
+                    # Keep a receipt of this action in our history table
                     cursor.execute(
                         "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
                         (user.id, 'DEPOSIT', amount)
@@ -160,13 +159,13 @@ def dashboard(user):
                     conn = psycopg2.connect(db_url, sslmode='require')
                     cursor = conn.cursor()
 
-                    # 1. Update the balance
+                    # Update their main balance first
                     cursor.execute(
                         "UPDATE users SET balance=%s WHERE id=%s",
                         (user.balance, user.id)
                     )
 
-                    # 2. ADD THIS: Log the withdrawal in the history!
+                    # Keep a receipt of this action in our history table
                     cursor.execute(
                         "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
                         (user.id, 'WITHDRAWAL', withdraw)
@@ -184,7 +183,7 @@ def dashboard(user):
                 conn = psycopg2.connect(db_url, sslmode='require')
                 cursor = conn.cursor()
 
-                # Fetch all transactions for this specific user, ordered by newest first
+                # Grab all transactions for this user and sort them so the newest show up first
                 cursor.execute(
                     "SELECT type, amount, timestamp FROM transactions WHERE user_id=%s ORDER BY timestamp DESC",
                     (user.id,)
@@ -215,7 +214,7 @@ def dashboard(user):
             print("Error:", e)
 
 
-# ---------------- MAIN MENU ----------------
+# The very first screen the user sees when they boot up the app
 def loginPage():
     db_init()
 
@@ -246,6 +245,6 @@ def loginPage():
             print("Error:", e)
 
 
-# ---------------- RUN ----------------
+# Kick off the application
 if __name__ == "__main__":
     loginPage()
