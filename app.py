@@ -51,6 +51,29 @@ def db_init():
                 status VARCHAR(20) DEFAULT 'PAID',
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS goals (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                target_amount NUMERIC NOT NULL,
+                current_amount NUMERIC DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS budgets (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                category TEXT NOT NULL,
+                limit_amount NUMERIC NOT NULL
+            );
+
+            -- Ensure savings_balance exists
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='savings_balance') THEN
+                    ALTER TABLE users ADD COLUMN savings_balance NUMERIC DEFAULT 0;
+                END IF;
+            END $$;
         ''')
 
         conn.commit()
@@ -63,16 +86,18 @@ def db_init():
 
 # A simple container to hold the logged-in user's details
 class User:
-    def __init__(self, name, password, user_id=None, balance=0):
+    def __init__(self, name, password, user_id=None, balance=0, savings_balance=0):
         self.name = name
         self.id = user_id
         self.balance = float(balance)
+        self.savings_balance = float(savings_balance or 0)
         self.password = password
     
     def display(self):
         print("Name:", self.name)
         print("ID:", self.id)
-        print("Balance:", self.balance)
+        print("Wallet Balance: ₹", self.balance)
+        print("Savings Balance: ₹", self.savings_balance)
 
 
 def login():
@@ -92,7 +117,11 @@ def login():
         conn.close()
 
         if user_data:
-            return User(user_data[1], user_data[3], user_data[0], user_data[2])
+            # user_data = (id, name, balance, password, savings_balance)
+            # check the index based on column order: id=0, name=1, balance=2, password=3, savings_balance=4
+            cursor.execute("SELECT id, name, balance, password, savings_balance FROM users WHERE id=%s", (user_data[0],))
+            final_data = cursor.fetchone()
+            return User(final_data[1], final_data[3], final_data[0], final_data[2], final_data[4])
         else:
             print("\nInvalid Credentials!")
             return None
@@ -110,7 +139,7 @@ def createAccount():
         cursor = conn.cursor()
 
         cursor.execute(
-            "INSERT INTO users (name, password) VALUES (%s, %s)",
+            "INSERT INTO users (name, password, savings_balance) VALUES (%s, %s, 0)",
             (n, p)
         )
 
@@ -120,6 +149,77 @@ def createAccount():
         print("\nAccount created successfully!\n")
     except Exception as e:
         print(f"Account Creation Error: {e}")
+
+
+def pfmMenu(user):
+    while True:
+        print("\n--- PERSONAL FINANCE MANAGEMENT ---")
+        print("1. Set Financial Goal")
+        print("2. Add to Goal")
+        print("3. Set Budget Limit")
+        print("4. View Savings Status & Insights")
+        print("5. Back to Dashboard")
+
+        try:
+            choice = int(input("Choice: "))
+            if choice == 1:
+                name = input("Goal Name: ")
+                target = float(input("Target Amount: ₹"))
+                conn = psycopg2.connect(db_url, sslmode='require')
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO goals (user_id, name, target_amount) VALUES (%s, %s, %s)", (user.id, name, target))
+                conn.commit()
+                conn.close()
+                print("Goal set!")
+
+            elif choice == 2:
+                conn = psycopg2.connect(db_url, sslmode='require')
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, name, target_amount, current_amount FROM goals WHERE user_id=%s", (user.id,))
+                goals = cursor.fetchall()
+                if not goals:
+                    print("No goals found")
+                    conn.close()
+                    continue
+                for g in goals:
+                    print(f"ID: {g[0]} | {g[1]}: ₹{g[3]}/₹{g[2]}")
+                gid = int(input("Goal ID: "))
+                amt = float(input("Amount to add: ₹"))
+                if 0 < amt <= user.balance:
+                    user.balance -= amt
+                    cursor.execute("UPDATE goals SET current_amount = current_amount + %s WHERE id=%s", (amt, gid))
+                    cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
+                    cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)", (user.id, "GOAL_CONTRIBUTION", amt))
+                    conn.commit()
+                    print("Contributed successfully!")
+                else: print("Invalid Amount/Balance")
+                conn.close()
+
+            elif choice == 3:
+                cat = input("Category (e.g. Food, Travel): ")
+                limit = float(input("Monthly Limit: ₹"))
+                conn = psycopg2.connect(db_url, sslmode='require')
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO budgets (user_id, category, limit_amount) VALUES (%s, %s, %s)", (user.id, cat, limit))
+                conn.commit()
+                conn.close()
+                print("Budget set!")
+
+            elif choice == 4:
+                print(f"Wallet Balance: ₹{user.balance}")
+                print(f"Savings Account Balance: ₹{user.savings_balance}")
+                conn = psycopg2.connect(db_url, sslmode='require')
+                cursor = conn.cursor()
+                cursor.execute("SELECT name, target_amount, current_amount FROM goals WHERE user_id=%s", (user.id,))
+                for g in cursor.fetchall():
+                    progress = (g[2]/g[1])*100 if g[1] > 0 else 0
+                    print(f"Goal: {g[0]} - {progress:.1f}% Complete (₹{g[2]} of ₹{g[1]})")
+                conn.close()
+
+            elif choice == 5:
+                break
+        except Exception as e:
+            print("Error:", e)
 
 
 def dashboard(user):
@@ -132,13 +232,15 @@ def dashboard(user):
         print("5. Apply for a Loan")
         print("6. Repay a Loan")
         print("7. Pay Bills")
-        print("8. Logout")
+        print("8. Personal Finance Management")
+        print("9. Logout")
 
         try:
             choice = int(input("Enter your choice: "))
 
             if choice == 1:
-                print(f"Current Balance: ₹{user.balance}")
+                print(f"Wallet Balance: ₹{user.balance}")
+                print(f"Savings Balance: ₹{user.savings_balance}")
 
             elif choice == 2:
                 amount = float(input("Enter Amount to deposit: "))
@@ -277,6 +379,9 @@ def dashboard(user):
                     print("Invalid input")
 
             elif choice == 8:
+                pfmMenu(user)
+
+            elif choice == 9:
                 print("Logging out...")
                 break
             else:
