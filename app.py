@@ -84,7 +84,6 @@ def db_init():
         exit()
 
 
-# A simple container to hold the logged-in user's details
 class User:
     def __init__(self, name, password, user_id=None, balance=0, savings_balance=0):
         self.name = name
@@ -391,7 +390,6 @@ def dashboard(user):
         except Exception as e:
             print("Error:", e)
 
-# The very first screen the user sees when they boot up the app
 def loginPage():
     db_init()
 
