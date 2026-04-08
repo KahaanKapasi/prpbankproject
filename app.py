@@ -67,9 +67,28 @@ def db_init():
                 limit_amount NUMERIC NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS transfers (
+                id SERIAL PRIMARY KEY,
+                sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                receiver_info TEXT,
+                amount NUMERIC,
+                type VARCHAR(30),
+                status VARCHAR(20) DEFAULT 'COMPLETED',
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS cheques (
+                id SERIAL PRIMARY KEY,
+                issuer_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                receiver_name TEXT,
+                amount NUMERIC,
+                status VARCHAR(20) DEFAULT 'PENDING',
+                issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
             -- Ensure savings_balance exists
-            DO $$ 
-            BEGIN 
+            DO $$
+            BEGIN
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='savings_balance') THEN
                     ALTER TABLE users ADD COLUMN savings_balance NUMERIC DEFAULT 0;
                 END IF;
