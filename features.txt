@@ -1,6 +1,6 @@
-1. User Registration (1) - Z
-2. Account Dashboard (1) - N
-3. Transaction history (1) - N
+1. User Registration (1) - Z ✓
+2. Account Dashboard (1) - N ✓
+3. Transaction history (1) - N ✓
 4. Transfers (3) - K
     a. Self Transfers
     b. Other bank Transfers
@@ -9,7 +9,7 @@
     e. NEFT
     f. Cheque Approval
 5. Deposit and Withdraw Funds (1.5) - Z
-6. Loan Application and Managment (1.5) - N
+6. Loan Application and Managment (1.5) - N ✓
 7. Bill Payments (1.5) - Z
 8. Card Management (Add, block, renew, etc)(2) - N
 9. Investments (Stocks, Savings, Etc)(1.5) - Z
