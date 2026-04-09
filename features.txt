@@ -8,9 +8,9 @@
     d. International Transactions
     e. NEFT
     f. Cheque Approval
-5. Deposit and Withdraw Funds (1.5) - Z ✓
+5. Deposit and Withdraw Funds (1.5) - N ✓
 6. Loan Application and Managment (1.5) - N ✓
-7. Bill Payments (1.5) - Z
-8. Card Management (Add, block, renew, etc)(2) - N
+7. Bill Payments (1.5) - Z ✓
+8. Card Management (Add, block, renew, etc)(2) - Z
 9. Investments (Stocks, Savings, Etc)(1.5) - Z
 10.Personal Finance Management (Goals, Budgets, Savings Status, etc) (2.5) - K

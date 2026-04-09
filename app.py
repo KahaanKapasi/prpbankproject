@@ -41,14 +41,31 @@ def db_init():
                 amount_paid NUMERIC DEFAULT 0,
                 status VARCHAR(20) DEFAULT 'ACTIVE',
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+            );
                        
             CREATE TABLE IF NOT EXISTS bills (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                bill_type VARCHAR(50),
+                user_id INTEGER REFERENCES users(id),
+                bill_type TEXT,
                 amount NUMERIC,
-                status VARCHAR(20) DEFAULT 'PAID',
+                status TEXT DEFAULT 'PENDING'
+            );
+
+            CREATE TABLE IF NOT EXISTS cards (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                card_number TEXT UNIQUE,
+                status VARCHAR(20) DEFAULT 'ACTIVE',
+                expiry_date DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+                       
+            CREATE TABLE IF NOT EXISTS investments (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                type VARCHAR(20),
+                amount NUMERIC,
+                returns NUMERIC DEFAULT 0,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         ''')
@@ -133,249 +150,12 @@ def dashboard(user):
         print("2. Deposit Money")
         print("3. Withdraw Money")
         print("4. View Transaction History")
-        print("5. Apply for a Loan")
-        print("6. Repay a Loan")
-        print("7. Pay Bills")
-        print("8. Logout")
-
-        try:
-            choice = int(input("Enter your choice: "))
-
-            if choice == 1:
-                print("Current Balance:", user.balance)
-
-            elif choice == 2:
-                amount = float(input("Enter Amount to deposit: "))
-                if amount > 0:
-                    user.balance += amount
-
-                    conn = psycopg2.connect(db_url, sslmode='require')
-                    cursor = conn.cursor()
-
-                    cursor.execute(
-                        "UPDATE users SET balance=%s WHERE id=%s",
-                        (user.balance, user.id)
-                    )
-
-                    cursor.execute(
-                        "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
-                        (user.id, 'DEPOSIT', amount)
-                    )
-
-                    conn.commit()
-                    conn.close()
-
-                    print("Amount deposited successfully!")
-                else:
-                    print("Invalid Amount")
-
-            elif choice == 3:
-                withdraw = float(input("Enter Amount to Withdraw: "))
-
-                if withdraw > user.balance:
-                    print("Insufficient balance!")
-                elif withdraw > 0:
-                    user.balance -= withdraw
-
-                    conn = psycopg2.connect(db_url, sslmode='require')
-                    cursor = conn.cursor()
-
-                    cursor.execute(
-                        "UPDATE users SET balance=%s WHERE id=%s",
-                        (user.balance, user.id)
-                    )
-
-                    cursor.execute(
-                        "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
-                        (user.id, 'WITHDRAWAL', withdraw)
-                    )
-
-                    conn.commit()
-                    conn.close()
-
-                    print("Amount withdrawn successfully!")
-                else:
-                    print("Invalid Amount")
-
-            elif choice == 4:
-                print("\n--- TRANSACTION HISTORY ---")
-                conn = psycopg2.connect(db_url, sslmode='require')
-                cursor = conn.cursor()
-
-                cursor.execute(
-                    "SELECT type, amount, timestamp FROM transactions WHERE user_id=%s ORDER BY timestamp DESC",
-                    (user.id,)
-                )
-
-                history = cursor.fetchall()
-                conn.close()
-
-                if not history:
-                    print("No transactions found.")
-                else:
-                    for record in history:
-                        print(f"[{record[2]}] {record[0]}: ₹{record[1]}")
-
-            elif choice == 5:
-                principal = float(input("Enter loan amount requested: ₹"))
-                if principal > 0:
-                    interest_rate = 5.0
-                    total_owed = principal + (principal * (interest_rate / 100))
-
-                    print(f"You will owe: ₹{total_owed}")
-                    confirm = input("Type 'yes' to accept: ").strip().lower()
-
-                    if confirm == 'yes':
-                        user.balance += principal
-
-                        conn = psycopg2.connect(db_url, sslmode='require')
-                        cursor = conn.cursor()
-
-                        cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-
-                        cursor.execute(
-                            "INSERT INTO loans (user_id, principal, total_owed) VALUES (%s, %s, %s)",
-                            (user.id, principal, total_owed)
-                        )
-
-                        cursor.execute(
-                            "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
-                            (user.id, 'LOAN_DISBURSEMENT', principal)
-                        )
-
-                        conn.commit()
-                        conn.close()
-
-                        print("Loan approved!")
-                else:
-                    print("Invalid amount.")
-
-            elif choice == 6:
-                conn = psycopg2.connect(db_url, sslmode='require')
-                cursor = conn.cursor()
-
-                cursor.execute(
-                    "SELECT id, total_owed, amount_paid FROM loans WHERE user_id=%s AND status='ACTIVE'",
-                    (user.id,)
-                )
-                active_loans = cursor.fetchall()
-
-                if not active_loans:
-                    print("No active loans!")
-                    conn.close()
-                    continue
-
-                for loan in active_loans:
-                    print(f"Loan ID: {loan[0]} | Remaining: ₹{loan[1] - loan[2]}")
-
-                try:
-                    target_loan = int(input("Loan ID: "))
-                    pay_amount = float(input("Amount: ₹"))
-
-                    if pay_amount > user.balance:
-                        print("Insufficient balance!")
-                        continue
-
-                    cursor.execute(
-                        "SELECT total_owed, amount_paid FROM loans WHERE id=%s AND user_id=%s AND status='ACTIVE'",
-                        (target_loan, user.id)
-                    )
-
-                    loan_data = cursor.fetchone()
-
-                    if loan_data:
-                        owed, paid = float(loan_data[0]), float(loan_data[1])
-                        remaining = owed - paid
-
-                        if pay_amount > remaining:
-                            pay_amount = remaining
-
-                        user.balance -= pay_amount
-                        new_paid = paid + pay_amount
-                        status = 'CLEARED' if new_paid >= owed else 'ACTIVE'
-
-                        cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                        cursor.execute("UPDATE loans SET amount_paid=%s, status=%s WHERE id=%s",
-                                       (new_paid, status, target_loan))
-                        cursor.execute(
-                            "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
-                            (user.id, 'LOAN_REPAYMENT', pay_amount)
-                        )
-
-                        conn.commit()
-                        print("Payment successful!")
-
-                except:
-                    print("Invalid input")
-
-                conn.close()
-
-            elif choice == 7:
-                print("\n--- BILL PAYMENT ---")
-                print("1. Electricity")
-                print("2. Mobile")
-                print("3. Water")
-                print("4. Rent")
-
-                try:
-                    b_choice = int(input("Choice: "))
-                    types = {1: "ELECTRICITY", 2: "MOBILE", 3: "WATER", 4: "RENT"}
-
-                    if b_choice not in types:
-                        print("Invalid choice")
-                        continue
-
-                    amount = float(input("Amount: ₹"))
-
-                    if amount <= 0 or amount > user.balance:
-                        print("Invalid / Insufficient balance")
-                        continue
-
-                    user.balance -= amount
-
-                    conn = psycopg2.connect(db_url, sslmode='require')
-                    cursor = conn.cursor()
-
-                    cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                    cursor.execute(
-                        "INSERT INTO bills (user_id, bill_type, amount) VALUES (%s, %s, %s)",
-                        (user.id, types[b_choice], amount)
-                    )
-                    cursor.execute(
-                        "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
-                        (user.id, 'BILL_PAYMENT', amount)
-                    )
-
-                    conn.commit()
-                    conn.close()
-
-                    print("Bill paid successfully!")
-
-                except:
-                    print("Invalid input")
-
-            elif choice == 8:
-                print("Logging out...")
-                break
-
-            else:
-                print("Invalid choice")
-
-        except ValueError:
-            print("Enter a valid number!")
-        except Exception as e:
-            print("Error:", e)
-    while True:
-        print("\n--- DASHBOARD ---")
-        print("1. View Balance")
-        print("2. Deposit Money")
-        print("3. Withdraw Money")
-        print("4. View Transaction History")
         print("5. Apply for a Loan")       # NEW
         print("6. Repay a Loan")           # NEW
-        print("7. Pay Bills")
-        print("8. Logout")
-        
+        print("7. Pay Bills")   # NEW
+        print("8. Card Management")
+        print("9. Investments")
+        print("10. Logout")
 
         try:
             choice = int(input("Enter your choice: "))
@@ -576,37 +356,38 @@ def dashboard(user):
                     print("Please enter valid numbers.")
                     
                 conn.close()
-            
-            
+        
             elif choice == 7:
                 print("\n--- BILL PAYMENT ---")
                 print("1. Electricity")
-                print("2. Mobile Recharge")
-                print("3. Water Bill")
-                print("4. Rent")
-                
+                print("2. Water")
+                print("3. Internet")
+                print("4. Mobile Recharge")
+
                 try:
-                    b_choice = int(input("Select bill type: "))
-                    bill_types = {
-                        1: "ELECTRICITY",
-                        2: "MOBILE",
-                        3: "WATER",
-                        4: "RENT"
-                    }
+                    bill_choice = int(input("Select bill type: "))
+                    amount = float(input("Enter amount: ₹"))
 
-                    if b_choice not in bill_types:
-                        print("Invalid bill type")
+                    if amount <= 0:
+                        print("Invalid amount.")
                         continue
-
-                    amount = float(input("Enter bill amount: ₹"))
 
                     if amount > user.balance:
                         print("Insufficient balance!")
                         continue
 
-                    if amount <= 0:
-                        print("Invalid amount!")
+                    bill_types = {
+                        1: "ELECTRICITY",
+                        2: "WATER",
+                        3: "INTERNET",
+                        4: "MOBILE"
+                    }
+
+                    if bill_choice not in bill_types:
+                        print("Invalid bill type.")
                         continue
+
+                    bill_type = bill_types[bill_choice]
 
                     # Deduct money
                     user.balance -= amount
@@ -620,27 +401,158 @@ def dashboard(user):
                         (user.balance, user.id)
                     )
 
-                    # Save bill record
-                    cursor.execute(
-                        "INSERT INTO bills (user_id, bill_type, amount) VALUES (%s, %s, %s)",
-                        (user.id, bill_types[b_choice], amount)
-                    )
-
-                    # Add to transaction history
+                    # Log transaction
                     cursor.execute(
                         "INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)",
-                        (user.id, 'BILL_PAYMENT', amount)
+                        (user.id, f'{bill_type}_BILL', amount)
                     )
 
                     conn.commit()
                     conn.close()
 
-                    print(f"{bill_types[b_choice]} bill paid successfully!")
+                    print(f"{bill_type} bill of ₹{amount} paid successfully!")
 
                 except ValueError:
-                    print("Invalid input!")
+                    print("Enter valid input!")
+            elif choice == 8:
+                print("\n--- CARD MANAGEMENT ---")
+                print("1. Add Card")
+                print("2. Block Card")
+                print("3. Renew Card")
+                print("4. View Cards")
+
+                try:
+                    c_choice = int(input("Enter choice: "))
+                    conn = psycopg2.connect(db_url, sslmode='require')
+                    cursor = conn.cursor()
+
+                    if c_choice == 1:
+                        import random
+                        card_number = str(random.randint(1000000000000000, 9999999999999999))
+                        expiry = "2030-12-31"
+
+                        cursor.execute(
+                            "INSERT INTO cards (user_id, card_number, expiry_date) VALUES (%s, %s, %s)",
+                            (user.id, card_number, expiry)
+                        )
+                        conn.commit()
+                        print(f"Card Added! Number: {card_number}")
+
+                    elif c_choice == 2:
+                        card_id = int(input("Enter Card ID to block: "))
+                        cursor.execute(
+                            "UPDATE cards SET status='BLOCKED' WHERE id=%s AND user_id=%s",
+                            (card_id, user.id)
+                        )
+                        conn.commit()
+                        print("Card Blocked.")
+
+                    elif c_choice == 3:
+                        card_id = int(input("Enter Card ID to renew: "))
+                        cursor.execute(
+                            "UPDATE cards SET expiry_date='2035-12-31', status='ACTIVE' WHERE id=%s AND user_id=%s",
+                            (card_id, user.id)
+                        )
+                        conn.commit()
+                        print("Card Renewed.")
+
+                    elif c_choice == 4:
+                        cursor.execute(
+                            "SELECT id, card_number, status, expiry_date FROM cards WHERE user_id=%s",
+                            (user.id,)
+                        )
+                        cards = cursor.fetchall()
+
+                        if not cards:
+                            print("No cards found.")
+                        else:
+                            for c in cards:
+                                print(f"ID: {c[0]} | Number: {c[1]} | Status: {c[2]} | Expiry: {c[3]}")
+
+                    else:
+                        print("Invalid choice.")
+
+                    conn.close()
+
+                except Exception as e:
+                    print("Error:", e)
+
+            elif choice == 9:
+                print("\n--- INVESTMENTS ---")
+                print("1. Invest in Savings (Safe)")
+                print("2. Invest in Stocks (Risky)")
+                print("3. View Investments")
+
+                try:
+                    i_choice = int(input("Enter choice: "))
+                    conn = psycopg2.connect(db_url, sslmode='require')
+                    cursor = conn.cursor()
+
+                    if i_choice in [1, 2]:
+                        amount = float(input("Enter amount: ₹"))
+
+                        if amount > user.balance:
+                            print("Insufficient balance!")
+                            conn.close()
+                            continue
+
+                        if amount <= 0:
+                            print("Invalid amount.")
+                            conn.close()
+                            continue
+
+                        # Deduct money
+                        user.balance -= amount
+                        cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
+
+                        # Simple return logic
+                        if i_choice == 1:
+                            returns = amount * 0.05   # 5% safe
+                            inv_type = "SAVINGS"
+                        else:
+                            import random
+                            returns = amount * random.uniform(-0.2, 0.3)  # -20% to +30%
+                            inv_type = "STOCKS"
+
+                        cursor.execute(
+                            "INSERT INTO investments (user_id, type, amount, returns) VALUES (%s, %s, %s, %s)",
+                            (user.id, inv_type, amount, returns)
+                        )
+
+                        conn.commit()
+                        print(f"Investment done! Expected return: ₹{returns}")
+
+                    elif i_choice == 3:
+                        cursor.execute(
+                            "SELECT type, amount, returns, timestamp FROM investments WHERE user_id=%s",
+                            (user.id,)
+                        )
+                        data = cursor.fetchall()
+
+                        if not data:
+                            print("No investments yet.")
+                        else:
+                            for d in data:
+                                print(f"[{d[3]}] {d[0]} | Invested: ₹{d[1]} | Returns: ₹{d[2]}")
+
+                    else:
+                        print("Invalid choice.")
+
+                    conn.close()
+
+                except Exception as e:
+                    print("Error:", e)
+
+            else:
+                print("Invalid Choice")
+
+        except ValueError:
+            print("Enter a valid number!")
         except Exception as e:
             print("Error:", e)
+
+
+
 
 # The very first screen the user sees when they boot up the app
 def loginPage():
