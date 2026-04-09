@@ -135,11 +135,10 @@ def login():
         conn.close()
 
         if user_data:
-            # user_data = (id, name, balance, password, savings_balance)
-            # check the index based on column order: id=0, name=1, balance=2, password=3, savings_balance=4
-            cursor.execute("SELECT id, name, balance, password, savings_balance FROM users WHERE id=%s", (user_data[0],))
-            final_data = cursor.fetchone()
-            return User(final_data[1], final_data[3], final_data[0], final_data[2], final_data[4])
+            savings = user_data[4] if len(user_data) > 4 else 0
+            user = User(user_data[1], user_data[3], user_data[0], user_data[2], savings)
+            print("\nLogin Successful!")
+            return user
         else:
             print("\nInvalid Credentials!")
             return None
@@ -167,6 +166,75 @@ def createAccount():
         print("\nAccount created successfully!\n")
     except Exception as e:
         print(f"Account Creation Error: {e}")
+
+
+def transfersMenu(user):
+    while True:
+        print("\n--- TRANSFERS ---")
+        print("1. Self Transfer")
+        print("2. Other Bank Transfer")
+        print("3. UPI Transfer")
+        print("4. International Transaction")
+        print("5. NEFT Transfer")
+        print("6. Cheque Approval")
+        print("7. Back")
+
+        try:
+            choice = int(input("Choice: "))
+
+            if choice == 1:
+                print(f"Wallet: ₹{user.balance} | Savings: ₹{user.savings_balance}")
+                print("1. Wallet → Savings\n2. Savings → Wallet")
+                direction = int(input("Choice: "))
+                amt = float(input("Amount: ₹"))
+
+                if direction == 1:
+                    if amt <= 0 or amt > user.balance:
+                        print("Invalid amount.")
+                    else:
+                        user.balance -= amt
+                        user.savings_balance += amt
+                        conn = psycopg2.connect(db_url, sslmode='require')
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE users SET balance=%s, savings_balance=%s WHERE id=%s", (user.balance, user.savings_balance, user.id))
+                        cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, "SELF-SAVINGS", amt, "SELF"))
+                        conn.commit()
+                        conn.close()
+                        print("Transferred to savings!")
+                elif direction == 2:
+                    if amt <= 0 or amt > user.savings_balance:
+                        print("Invalid amount.")
+                    else:
+                        user.savings_balance -= amt
+                        user.balance += amt
+                        conn = psycopg2.connect(db_url, sslmode='require')
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE users SET balance=%s, savings_balance=%s WHERE id=%s", (user.balance, user.savings_balance, user.id))
+                        cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, "SELF-WALLET", amt, "SELF"))
+                        conn.commit()
+                        conn.close()
+                        print("Transferred to wallet!")
+
+            elif choice == 2:
+                pass
+
+            elif choice == 3:
+                pass
+
+            elif choice == 4:
+                pass
+
+            elif choice == 5:
+                pass
+
+            elif choice == 6:
+                pass
+
+            elif choice == 7:
+                break
+
+        except Exception as e:
+            print("Error:", e)
 
 
 def pfmMenu(user):
