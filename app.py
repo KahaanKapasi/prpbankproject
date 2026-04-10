@@ -216,10 +216,46 @@ def transfersMenu(user):
                         print("Transferred to wallet!")
 
             elif choice == 2:
-                pass
+                recipient = input("Recipient Username: ").strip()
+                if recipient == user.name:
+                    print("Use Self Transfer for own account.")
+                    continue
+                amt = float(input("Amount: ₹"))
+                if amt <= 0 or amt > user.balance:
+                    print("Invalid amount.")
+                    continue
+                conn = psycopg2.connect(db_url, sslmode='require')
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM users WHERE name=%s", (recipient,))
+                rec = cursor.fetchone()
+                if not rec:
+                    print("User not found.")
+                    conn.close()
+                    continue
+                user.balance -= amt
+                cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
+                cursor.execute("UPDATE users SET balance=balance+%s WHERE id=%s", (amt, rec[0]))
+                cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, recipient, amt, "BANK"))
+                cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s,%s,%s)", (user.id, "TRANSFER_OUT", amt))
+                conn.commit()
+                conn.close()
+                print(f"₹{amt} transferred to {recipient}!")
 
             elif choice == 3:
-                pass
+                upi_id = input("Enter UPI ID (e.g. name@bank): ").strip()
+                amt = float(input("Amount: ₹"))
+                if amt <= 0 or amt > user.balance:
+                    print("Invalid amount.")
+                    continue
+                user.balance -= amt
+                conn = psycopg2.connect(db_url, sslmode='require')
+                cursor = conn.cursor()
+                cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
+                cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, upi_id, amt, "UPI"))
+                cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s,%s,%s)", (user.id, "UPI_TRANSFER", amt))
+                conn.commit()
+                conn.close()
+                print(f"₹{amt} sent to {upi_id}!")
 
             elif choice == 4:
                 pass
