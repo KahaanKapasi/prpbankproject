@@ -258,10 +258,65 @@ def transfersMenu(user):
                 print(f"₹{amt} sent to {upi_id}!")
 
             elif choice == 4:
-                pass
+                print("Select Currency:")
+                print("1. USD ($1 = ₹83)\n2. EUR (€1 = ₹90)\n3. GBP (£1 = ₹105)")
+                curr_choice = int(input("Choice: "))
+                rates = {1: ("USD", 83), 2: ("EUR", 90), 3: ("GBP", 105)}
+                if curr_choice not in rates:
+                    print("Invalid currency.")
+                    continue
+                curr_name, rate = rates[curr_choice]
+                foreign_amt = float(input(f"Amount in {curr_name}: "))
+                inr_amt = round(foreign_amt * rate, 2)
+                print(f"Total deduction: ₹{inr_amt}")
+                confirm = input("Confirm? (yes): ").strip().lower()
+                if confirm != 'yes':
+                    continue
+                if inr_amt > user.balance:
+                    print("Insufficient balance!")
+                    continue
+                user.balance -= inr_amt
+                conn = psycopg2.connect(db_url, sslmode='require')
+                cursor = conn.cursor()
+                cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
+                cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, curr_name, inr_amt, "INTERNATIONAL"))
+                cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s,%s,%s)", (user.id, "INTL_TRANSFER", inr_amt))
+                conn.commit()
+                conn.close()
+                print(f"{curr_name} {foreign_amt} sent (₹{inr_amt} deducted)!")
 
             elif choice == 5:
-                pass
+                recipient = input("Recipient Username: ").strip()
+                if recipient == user.name:
+                    print("Use Self Transfer.")
+                    continue
+                amt = float(input("Amount: ₹"))
+                fee = 5.0
+                total = amt + fee
+                if amt <= 0 or total > user.balance:
+                    print("Insufficient balance! (includes ₹5 NEFT fee)")
+                    continue
+                conn = psycopg2.connect(db_url, sslmode='require')
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM users WHERE name=%s", (recipient,))
+                rec = cursor.fetchone()
+                if not rec:
+                    print("User not found.")
+                    conn.close()
+                    continue
+                print(f"Sending ₹{amt} + ₹{fee} fee = ₹{total}")
+                confirm = input("Confirm? (yes): ").strip().lower()
+                if confirm != 'yes':
+                    conn.close()
+                    continue
+                user.balance -= total
+                cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
+                cursor.execute("UPDATE users SET balance=balance+%s WHERE id=%s", (amt, rec[0]))
+                cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, recipient, amt, "NEFT"))
+                cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s,%s,%s)", (user.id, "NEFT_TRANSFER", total))
+                conn.commit()
+                conn.close()
+                print(f"NEFT of ₹{amt} to {recipient} done!")
 
             elif choice == 6:
                 pass
