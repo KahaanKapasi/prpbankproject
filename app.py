@@ -319,7 +319,61 @@ def transfersMenu(user):
                 print(f"NEFT of ₹{amt} to {recipient} done!")
 
             elif choice == 6:
-                pass
+                print("1. Issue Cheque\n2. View Pending Cheques\n3. Approve Cheque")
+                c_choice = int(input("Choice: "))
+                conn = psycopg2.connect(db_url, sslmode='require')
+                cursor = conn.cursor()
+
+                if c_choice == 1:
+                    receiver = input("Payee Name: ").strip()
+                    amt = float(input("Amount: ₹"))
+                    if amt <= 0 or amt > user.balance:
+                        print("Invalid amount.")
+                    else:
+                        cursor.execute("INSERT INTO cheques (issuer_id, receiver_name, amount) VALUES (%s,%s,%s)", (user.id, receiver, amt))
+                        conn.commit()
+                        print("Cheque issued!")
+
+                elif c_choice == 2:
+                    cursor.execute("SELECT id, receiver_name, amount, issued_at FROM cheques WHERE issuer_id=%s AND status='PENDING'", (user.id,))
+                    cheques = cursor.fetchall()
+                    if not cheques:
+                        print("No pending cheques issued by you.")
+                    for ch in cheques:
+                        print(f"ID:{ch[0]} | To: {ch[1]} | ₹{ch[2]} | Issued: {ch[3]}")
+
+                elif c_choice == 3:
+                    cursor.execute("SELECT id, issuer_id, amount FROM cheques WHERE receiver_name=%s AND status='PENDING'", (user.name,))
+                    cheques = cursor.fetchall()
+                    if not cheques:
+                        print("No cheques to approve.")
+                        conn.close()
+                        continue
+                    for ch in cheques:
+                        print(f"ID:{ch[0]} | Amount: ₹{ch[2]}")
+                    cid = int(input("Cheque ID to approve: "))
+                    cursor.execute("SELECT issuer_id, amount FROM cheques WHERE id=%s AND receiver_name=%s AND status='PENDING'", (cid, user.name))
+                    cheque = cursor.fetchone()
+                    if not cheque:
+                        print("Invalid cheque.")
+                        conn.close()
+                        continue
+                    issuer_id, amt = cheque[0], float(cheque[1])
+                    cursor.execute("SELECT balance FROM users WHERE id=%s", (issuer_id,))
+                    issuer_bal = float(cursor.fetchone()[0])
+                    if issuer_bal < amt:
+                        print("Issuer has insufficient funds!")
+                        conn.close()
+                        continue
+                    user.balance += amt
+                    cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (amt, issuer_id))
+                    cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
+                    cursor.execute("UPDATE cheques SET status='CLEARED' WHERE id=%s", (cid,))
+                    cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s,%s,%s)", (user.id, "CHEQUE_RECEIVED", amt))
+                    conn.commit()
+                    print(f"Cheque approved! ₹{amt} added to wallet.")
+
+                conn.close()
 
             elif choice == 7:
                 break
