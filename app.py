@@ -463,8 +463,9 @@ def dashboard(user):
         print("5. Apply for a Loan")
         print("6. Repay a Loan")
         print("7. Pay Bills")
-        print("8. Personal Finance Management")
-        print("9. Logout")
+        print("8. Transfers")
+        print("9. Personal Finance Management")
+        print("10. Logout")
 
         try:
             choice = int(input("Enter your choice: "))
@@ -610,9 +611,12 @@ def dashboard(user):
                     print("Invalid input")
 
             elif choice == 8:
-                pfmMenu(user)
+                transfersMenu(user)
 
             elif choice == 9:
+                pfmMenu(user)
+
+            elif choice == 10:
                 print("Logging out...")
                 break
             else:
