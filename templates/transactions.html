@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %} — Transactions{% endblock %}
+{% block page_title %}<h1>Transaction History</h1>{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">All Transactions</div>
+  {% if history %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Amount</th>
+          <th>Date &amp; Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for txn in history %}
+        <tr>
+          <td>
+            <span class="badge
+              {% if txn[0] in ['DEPOSIT','LOAN_DISBURSEMENT','CHEQUE_RECEIVED'] %}badge-green
+              {% elif txn[0] in ['WITHDRAWAL','BILL_PAYMENT','TRANSFER_OUT','UPI_TRANSFER','NEFT_TRANSFER','INTL_TRANSFER'] %}badge-red
+              {% else %}badge-blue{% endif %}">
+              {{ txn[0].replace('_', ' ') }}
+            </span>
+          </td>
+          <td class="amount">₹{{ "%.2f"|format(txn[1]) }}</td>
+          <td class="text-muted">{{ txn[2].strftime('%d %b %Y, %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-text">No transactions found.</p>
+  {% endif %}
+</div>
+{% endblock %}
