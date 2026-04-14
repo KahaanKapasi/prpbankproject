@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %} — Dashboard{% endblock %}
+{% block page_title %}<h1>Dashboard</h1>{% endblock %}
+
+{% block content %}
+<div class="grid grid-4 mb-24">
+  <div class="stat-card">
+    <div class="stat-label">Wallet Balance</div>
+    <div class="stat-value green">₹{{ "%.2f"|format(user.balance) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Savings Account</div>
+    <div class="stat-value blue">₹{{ "%.2f"|format(user.savings) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Invested</div>
+    <div class="stat-value">₹{{ "%.2f"|format(total_invested) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Net Worth</div>
+    <div class="stat-value">₹{{ "%.2f"|format(user.balance + user.savings + total_invested) }}</div>
+  </div>
+</div>
+
+<div class="grid grid-3 mb-24">
+  <a href="{{ url_for('deposit') }}" class="action-card">
+    <span class="action-icon">
+      <svg width="28" height="28" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd"/></svg>
+    </span>
+    <div class="action-label">Deposit</div>
+  </a>
+  <a href="{{ url_for('withdraw') }}" class="action-card">
+    <span class="action-icon">
+      <svg width="28" height="28" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clip-rule="evenodd"/></svg>
+    </span>
+    <div class="action-label">Withdraw</div>
+  </a>
+  <a href="{{ url_for('transfers') }}" class="action-card">
+    <span class="action-icon">
+      <svg width="28" height="28" viewBox="0 0 20 20" fill="currentColor"><path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z"/></svg>
+    </span>
+    <div class="action-label">Transfer</div>
+  </a>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-title">Recent Transactions</div>
+    {% if recent %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for txn in recent %}
+          <tr>
+            <td><span class="badge {% if 'DEPOSIT' in txn[0] or 'RECEIVED' in txn[0] or 'DISBURSEMENT' in txn[0] %}badge-green{% elif 'WITHDRAW' in txn[0] or 'OUT' in txn[0] or 'PAYMENT' in txn[0] or 'TRANSFER' in txn[0] %}badge-red{% else %}badge-blue{% endif %}">{{ txn[0].replace('_', ' ') }}</span></td>
+            <td class="amount">₹{{ "%.2f"|format(txn[1]) }}</td>
+            <td>{{ txn[2].strftime('%d %b, %H:%M') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <a href="{{ url_for('transactions') }}" class="btn btn-ghost btn-sm mt-16">View All</a>
+    {% else %}
+      <p class="empty-text">No transactions yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Quick Summary</div>
+    <div class="summary-row">
+      <span class="summary-label">Active Loans</span>
+      <span class="summary-value {% if active_loans > 0 %}warn{% endif %}">{{ active_loans }}</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Pending Bills</span>
+      <span class="summary-value {% if pending_bills > 0 %}warn{% endif %}">{{ pending_bills }}</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Total Invested</span>
+      <span class="summary-value">₹{{ "%.2f"|format(total_invested) }}</span>
+    </div>
+    <hr class="divider">
+    <div class="quick-links">
+      {% if active_loans > 0 %}
+        <a href="{{ url_for('loans') }}" class="btn btn-ghost btn-sm">Manage Loans</a>
+      {% endif %}
+      {% if pending_bills > 0 %}
+        <a href="{{ url_for('bills') }}" class="btn btn-ghost btn-sm">Pay Bills</a>
+      {% endif %}
+      <a href="{{ url_for('investments') }}" class="btn btn-ghost btn-sm">Invest</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
