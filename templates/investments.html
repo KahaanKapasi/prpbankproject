@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %} — Investments{% endblock %}
+{% block page_title %}<h1>Investments</h1>{% endblock %}
+
+{% block content %}
+<div class="grid grid-2 mb-24">
+  <div class="card">
+    <div class="card-title">Safe Investments</div>
+    <div class="info-box mb-16">FD 5% · Bonds 7% · Mutual Fund 10%</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="safe">
+      <div class="form-group">
+        <label>Type</label>
+        <select name="inv_type" required>
+          <option value="FD">Fixed Deposit (5%)</option>
+          <option value="BONDS">Bonds (7%)</option>
+          <option value="MF">Mutual Fund (10%)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Amount (₹)</label>
+        <input type="number" name="amount" step="0.01" min="1" max="{{ user.balance }}" placeholder="0.00" required>
+      </div>
+      <div class="balance-chip">Available: ₹{{ "%.2f"|format(user.balance) }}</div>
+      <button type="submit" class="btn btn-primary btn-block">Invest</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Stocks</div>
+    <div class="stock-list mb-16">
+      <div class="stock-row"><span>TechCorp</span><span class="stock-price">₹100</span></div>
+      <div class="stock-row"><span>GreenEnergy</span><span class="stock-price">₹200</span></div>
+      <div class="stock-row"><span>FinBank</span><span class="stock-price">₹150</span></div>
+    </div>
+    <form method="POST">
+      <input type="hidden" name="action" value="stock">
+      <div class="form-group">
+        <label>Stock</label>
+        <select name="stock" required>
+          <option value="TechCorp">TechCorp — ₹100/share</option>
+          <option value="GreenEnergy">GreenEnergy — ₹200/share</option>
+          <option value="FinBank">FinBank — ₹150/share</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Quantity</label>
+        <input type="number" name="qty" min="1" placeholder="1" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Buy Stock</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Portfolio</div>
+  {% if investments %}
+    <table class="table">
+      <thead>
+        <tr><th>Type</th><th>Invested</th><th>Return</th><th>P&amp;L</th><th>Date</th></tr>
+      </thead>
+      <tbody>
+        {% for inv in investments %}
+        <tr>
+          <td><span class="badge badge-blue">{{ inv[0] }}</span></td>
+          <td class="amount">₹{{ "%.2f"|format(inv[1]) }}</td>
+          <td class="amount">₹{{ "%.2f"|format(inv[2]) }}</td>
+          <td class="amount {% if inv[2] >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
+            {% if inv[2] >= 0 %}+{% endif %}₹{{ "%.2f"|format(inv[2]) }}
+          </td>
+          <td class="text-muted">{{ inv[3].strftime('%d %b %Y') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-text">No investments yet.</p>
+  {% endif %}
+</div>
+{% endblock %}
