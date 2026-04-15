@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %} — Transfers{% endblock %}
+{% block page_title %}<h1>Transfers</h1>{% endblock %}
+
+{% block content %}
+
+{% if pending_cheques %}
+<div class="alert alert-info">
+  You have {{ pending_cheques|length }} pending cheque(s) to approve.
+</div>
+{% endif %}
+
+<div class="tabs" id="tabBar">
+  <button class="tab active" onclick="showTab('self')">Self</button>
+  <button class="tab" onclick="showTab('bank')">Bank</button>
+  <button class="tab" onclick="showTab('upi')">UPI</button>
+  <button class="tab" onclick="showTab('intl')">International</button>
+  <button class="tab" onclick="showTab('neft')">NEFT</button>
+  <button class="tab" onclick="showTab('cheque')">Cheque</button>
+</div>
+
+<div class="grid grid-2">
+  <div>
+    <!-- Self -->
+    <div id="tab-self" class="tab-content active card">
+      <div class="card-title">Self Transfer</div>
+      <div class="balance-row mb-16">
+        <span>Wallet: <strong>₹{{ "%.2f"|format(user.balance) }}</strong></span>
+        <span>Savings: <strong>₹{{ "%.2f"|format(user.savings) }}</strong></span>
+      </div>
+      <form method="POST">
+        <input type="hidden" name="transfer_type" value="self">
+        <div class="form-group">
+          <label>Direction</label>
+          <select name="direction">
+            <option value="to_savings">Wallet → Savings</option>
+            <option value="to_wallet">Savings → Wallet</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Transfer</button>
+      </form>
+    </div>
+
+    <!-- Bank -->
+    <div id="tab-bank" class="tab-content card">
+      <div class="card-title">Other Bank Transfer</div>
+      <form method="POST">
+        <input type="hidden" name="transfer_type" value="bank">
+        <div class="form-group">
+          <label>Recipient Username</label>
+          <input type="text" name="recipient" placeholder="Enter username" required>
+        </div>
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Send</button>
+      </form>
+    </div>
+
+    <!-- UPI -->
+    <div id="tab-upi" class="tab-content card">
+      <div class="card-title">UPI Transfer</div>
+      <form method="POST">
+        <input type="hidden" name="transfer_type" value="upi">
+        <div class="form-group">
+          <label>UPI ID</label>
+          <input type="text" name="upi_id" placeholder="e.g. name@okbank" required>
+        </div>
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Pay</button>
+      </form>
+    </div>
+
+    <!-- International -->
+    <div id="tab-intl" class="tab-content card">
+      <div class="card-title">International Transaction</div>
+      <div class="info-box mb-16">USD ₹83 · EUR ₹90 · GBP ₹105</div>
+      <form method="POST">
+        <input type="hidden" name="transfer_type" value="international">
+        <div class="form-group">
+          <label>Currency</label>
+          <select name="currency">
+            <option value="USD">USD — US Dollar</option>
+            <option value="EUR">EUR — Euro</option>
+            <option value="GBP">GBP — British Pound</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Amount (foreign currency)</label>
+          <input type="number" name="foreign_amount" step="0.01" min="0.01" placeholder="0.00" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Send</button>
+      </form>
+    </div>
+
+    <!-- NEFT -->
+    <div id="tab-neft" class="tab-content card">
+      <div class="card-title">NEFT Transfer</div>
+      <div class="info-box mb-16">₹5 processing fee applies</div>
+      <form method="POST">
+        <input type="hidden" name="transfer_type" value="neft">
+        <div class="form-group">
+          <label>Recipient Username</label>
+          <input type="text" name="recipient" placeholder="Enter username" required>
+        </div>
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Send via NEFT</button>
+      </form>
+    </div>
+
+    <!-- Cheque -->
+    <div id="tab-cheque" class="tab-content card">
+      <div class="card-title">Cheque</div>
+      <p class="text-muted mb-16" style="font-size:13px">Issue a cheque, or approve cheques addressed to you.</p>
+
+      <form method="POST" class="mb-16">
+        <input type="hidden" name="transfer_type" value="issue_cheque">
+        <div class="form-group">
+          <label>Payee Name</label>
+          <input type="text" name="receiver" placeholder="Recipient username" required>
+        </div>
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Issue Cheque</button>
+      </form>
+
+      {% if pending_cheques %}
+      <hr class="divider">
+      <div class="card-title">Pending Cheques for You</div>
+      <form method="POST">
+        <input type="hidden" name="transfer_type" value="approve_cheque">
+        <div class="form-group">
+          <label>Select Cheque</label>
+          <select name="cheque_id" required>
+            {% for ch in pending_cheques %}
+              <option value="{{ ch[0] }}">Cheque #{{ ch[0] }} — ₹{{ "%.2f"|format(ch[2]) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-success btn-block">Approve &amp; Collect</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Recent Transfers</div>
+    {% if recent_transfers %}
+      <table class="table">
+        <thead>
+          <tr><th>To</th><th>Amount</th><th>Type</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+          {% for t in recent_transfers %}
+          <tr>
+            <td>{{ t[0] }}</td>
+            <td class="amount">₹{{ "%.2f"|format(t[1]) }}</td>
+            <td><span class="badge badge-blue">{{ t[2] }}</span></td>
+            <td class="text-muted">{{ t[3].strftime('%d %b') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty-text">No transfers yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+{% endblock %}
