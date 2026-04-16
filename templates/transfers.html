@@ -169,7 +169,7 @@
             <td>{{ t[0] }}</td>
             <td class="amount">₹{{ "%.2f"|format(t[1]) }}</td>
             <td><span class="badge badge-blue">{{ t[2] }}</span></td>
-            <td class="text-muted">{{ t[3].strftime('%d %b') }}</td>
+            <td class="text-muted">{{ t[3][:10] }}</td>
           </tr>
           {% endfor %}
         </tbody>

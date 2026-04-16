@@ -73,7 +73,7 @@
           <td>₹{{ "%.2f"|format(loan[3]) }}</td>
           <td>₹{{ "%.2f"|format(loan[2] - loan[3]) }}</td>
           <td><span class="badge {% if loan[4] == 'ACTIVE' %}badge-yellow{% else %}badge-green{% endif %}">{{ loan[4] }}</span></td>
-          <td class="text-muted">{{ loan[5].strftime('%d %b %Y') }}</td>
+          <td class="text-muted">{{ loan[5][:10] }}</td>
         </tr>
         {% endfor %}
       </tbody>

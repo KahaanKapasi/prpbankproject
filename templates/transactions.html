@@ -26,7 +26,7 @@
             </span>
           </td>
           <td class="amount">₹{{ "%.2f"|format(txn[1]) }}</td>
-          <td class="text-muted">{{ txn[2].strftime('%d %b %Y, %H:%M') }}</td>
+          <td class="text-muted">{{ txn[2][:16] }}</td>
         </tr>
         {% endfor %}
       </tbody>

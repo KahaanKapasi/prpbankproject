@@ -68,7 +68,7 @@
           <td class="amount {% if inv[2] >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
             {% if inv[2] >= 0 %}+{% endif %}₹{{ "%.2f"|format(inv[2]) }}
           </td>
-          <td class="text-muted">{{ inv[3].strftime('%d %b %Y') }}</td>
+          <td class="text-muted">{{ inv[3][:10] }}</td>
         </tr>
         {% endfor %}
       </tbody>
