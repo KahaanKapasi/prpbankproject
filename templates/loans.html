@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %} — Loans{% endblock %}
+{% block page_title %}<h1>Loans</h1>{% endblock %}
+
+{% block content %}
+<div class="grid grid-2 mb-24">
+  <div class="card">
+    <div class="card-title">Apply for a Loan</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="apply">
+      <div class="form-group">
+        <label>Loan Amount (₹)</label>
+        <input type="number" name="principal" step="0.01" min="1" placeholder="0.00" required>
+      </div>
+      <div class="info-box">
+        5% flat interest rate · Funds credited instantly
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Apply Now</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Repay a Loan</div>
+    {% set active = loans | selectattr('4', 'equalto', 'ACTIVE') | list %}
+    {% if active %}
+      <form method="POST">
+        <input type="hidden" name="action" value="repay">
+        <div class="form-group">
+          <label>Select Loan</label>
+          <select name="loan_id" required>
+            {% for loan in loans %}
+              {% if loan[4] == 'ACTIVE' %}
+                <option value="{{ loan[0] }}">
+                  Loan #{{ loan[0] }} — ₹{{ "%.2f"|format(loan[2] - loan[3]) }} remaining
+                </option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Payment Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+        </div>
+        <button type="submit" class="btn btn-success btn-block">Make Payment</button>
+      </form>
+    {% else %}
+      <p class="empty-text">No active loans.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Loan History</div>
+  {% if loans %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Principal</th>
+          <th>Total Owed</th>
+          <th>Paid</th>
+          <th>Remaining</th>
+          <th>Status</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for loan in loans %}
+        <tr>
+          <td>#{{ loan[0] }}</td>
+          <td>₹{{ "%.2f"|format(loan[1]) }}</td>
+          <td>₹{{ "%.2f"|format(loan[2]) }}</td>
+          <td>₹{{ "%.2f"|format(loan[3]) }}</td>
+          <td>₹{{ "%.2f"|format(loan[2] - loan[3]) }}</td>
+          <td><span class="badge {% if loan[4] == 'ACTIVE' %}badge-yellow{% else %}badge-green{% endif %}">{{ loan[4] }}</span></td>
+          <td class="text-muted">{{ loan[5][:10] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-text">No loan history.</p>
+  {% endif %}
+</div>
+{% endblock %}

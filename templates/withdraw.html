@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %} — Withdraw{% endblock %}
+{% block page_title %}<h1>Withdraw Money</h1>{% endblock %}
+
+{% block content %}
+<div class="form-page">
+  <div class="card form-card">
+    <div class="balance-chip">
+      Available Balance: <strong>₹{{ "%.2f"|format(user.balance) }}</strong>
+    </div>
+    <form method="POST">
+      <div class="form-group">
+        <label>Amount (₹)</label>
+        <input type="number" name="amount" step="0.01" min="1" max="{{ user.balance }}" placeholder="0.00" required autofocus>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Withdraw Funds</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

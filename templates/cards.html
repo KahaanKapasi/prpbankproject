@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %} — Cards{% endblock %}
+{% block page_title %}<h1>Card Management</h1>{% endblock %}
+
+{% block content %}
+<div class="grid grid-2 mb-24">
+  <div class="card">
+    <div class="card-title">Add New Card</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="add">
+      <p class="text-muted mb-16" style="font-size:14px">A new virtual debit card will be generated with a unique 16-digit number.</p>
+      <button type="submit" class="btn btn-primary">Generate Card</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Manage Card</div>
+    {% if cards %}
+      <form method="POST" id="cardForm">
+        <div class="form-group">
+          <label>Select Card</label>
+          <select name="card_id" required>
+            {% for card in cards %}
+              <option value="{{ card[0] }}">**** {{ card[1][-4:] }} — {{ card[2] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="btn-row">
+          <button type="submit" name="action" value="block" class="btn btn-danger btn-sm">Block</button>
+          <button type="submit" name="action" value="unblock" class="btn btn-success btn-sm">Unblock</button>
+          <button type="submit" name="action" value="renew" class="btn btn-ghost btn-sm">Renew</button>
+        </div>
+      </form>
+    {% else %}
+      <p class="empty-text">No cards yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Your Cards</div>
+  {% if cards %}
+    <div class="cards-grid">
+      {% for card in cards %}
+      <div class="card-visual {% if card[2] == 'BLOCKED' %}blocked{% endif %}">
+        <div class="card-bank">PRP Bank</div>
+        <div class="card-number">{{ card[1][:4] }} **** **** {{ card[1][-4:] }}</div>
+        <div class="card-footer">
+          <span>Expires {{ card[3] }}</span>
+          <span class="card-status-badge {% if card[2] == 'ACTIVE' %}active{% else %}blocked{% endif %}">{{ card[2] }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty-text">No cards found. Add one above.</p>
+  {% endif %}
+</div>
+{% endblock %}

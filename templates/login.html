@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PRP Bank — Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth-body">
+  <div class="auth-wrapper">
+    <div class="auth-box">
+      <div class="auth-logo">
+        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="8" fill="#3b82f6"/>
+          <path d="M7 22V14l9-6 9 6v8" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
+          <rect x="13" y="16" width="6" height="6" rx="1" fill="#fff"/>
+        </svg>
+        <div class="auth-logo-text">PRP Bank</div>
+        <div class="auth-logo-sub">Secure Digital Banking</div>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" name="name" placeholder="Enter your username" required autofocus>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" placeholder="Enter your password" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+      </form>
+
+      <div class="auth-link">
+        Don't have an account? <a href="{{ url_for('register') }}">Create one</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

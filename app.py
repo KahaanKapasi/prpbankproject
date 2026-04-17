@@ -1,661 +1,866 @@
 import os
-import psycopg2
-from dotenv import load_dotenv
+import random
+import sqlite3
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 
-# Grab the database connection string from our hidden .env file
-load_dotenv()
-db_url = os.getenv("DATABASE_URL")
+app = Flask(__name__)
+app.secret_key = 'prpbank_dev_secret'
 
-if not db_url:
-    print("Error: DATABASE_URL not found. Check your .env file.")
-    exit()
+DB_PATH = os.path.join(os.path.dirname(__file__), 'bank.db')
 
-# Make sure our database has the right tables ready to go before the app starts
+
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
 def db_init():
-    try:
-        conn = psycopg2.connect(db_url, sslmode='require')
-        cursor = conn.cursor()
-
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                name TEXT NOT NULL,
-                balance NUMERIC DEFAULT 0,
-                password TEXT NOT NULL
-            );
-            
-            CREATE TABLE IF NOT EXISTS transactions (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                type VARCHAR(50) NOT NULL,
-                amount NUMERIC NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            
-            CREATE TABLE IF NOT EXISTS loans (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                principal NUMERIC NOT NULL,
-                interest_rate NUMERIC DEFAULT 5.0,
-                total_owed NUMERIC NOT NULL,
-                amount_paid NUMERIC DEFAULT 0,
-                status VARCHAR(20) DEFAULT 'ACTIVE',
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            
-            CREATE TABLE IF NOT EXISTS bills (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                bill_type VARCHAR(50),
-                amount NUMERIC,
-                status VARCHAR(20) DEFAULT 'PAID',
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-
-            CREATE TABLE IF NOT EXISTS goals (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                name TEXT NOT NULL,
-                target_amount NUMERIC NOT NULL,
-                current_amount NUMERIC DEFAULT 0
-            );
-
-            CREATE TABLE IF NOT EXISTS budgets (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                category TEXT NOT NULL,
-                limit_amount NUMERIC NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS transfers (
-                id SERIAL PRIMARY KEY,
-                sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                receiver_info TEXT,
-                amount NUMERIC,
-                type VARCHAR(30),
-                status VARCHAR(20) DEFAULT 'COMPLETED',
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-
-            CREATE TABLE IF NOT EXISTS cheques (
-                id SERIAL PRIMARY KEY,
-                issuer_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                receiver_name TEXT,
-                amount NUMERIC,
-                status VARCHAR(20) DEFAULT 'PENDING',
-                issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-
-            -- Ensure savings_balance exists
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='savings_balance') THEN
-                    ALTER TABLE users ADD COLUMN savings_balance NUMERIC DEFAULT 0;
-                END IF;
-            END $$;
-        ''')
-
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"Database Initialization Error: {e}")
-        print("Please check if your Supabase project is active and your URL is correct.")
-        exit()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.executescript('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            balance REAL DEFAULT 0,
+            password TEXT NOT NULL,
+            savings_balance REAL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            type TEXT NOT NULL,
+            amount REAL NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS loans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            principal REAL NOT NULL,
+            interest_rate REAL DEFAULT 5.0,
+            total_owed REAL NOT NULL,
+            amount_paid REAL DEFAULT 0,
+            status TEXT DEFAULT 'ACTIVE',
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS bills (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            bill_type TEXT,
+            amount REAL,
+            due_date DATE,
+            status TEXT DEFAULT 'PENDING'
+        );
+        CREATE TABLE IF NOT EXISTS cards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            card_number TEXT UNIQUE,
+            status TEXT DEFAULT 'ACTIVE',
+            expiry_date DATE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS investments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            type TEXT,
+            amount REAL,
+            returns REAL DEFAULT 0,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            goal_name TEXT,
+            target_amount REAL,
+            saved_amount REAL DEFAULT 0,
+            status TEXT DEFAULT 'ACTIVE'
+        );
+        CREATE TABLE IF NOT EXISTS budgets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            category TEXT,
+            monthly_limit REAL,
+            spent REAL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS transfers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            receiver_info TEXT,
+            amount REAL,
+            type TEXT,
+            status TEXT DEFAULT 'COMPLETED',
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS cheques (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            issuer_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            receiver_name TEXT,
+            amount REAL,
+            status TEXT DEFAULT 'PENDING',
+            issued_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    ''')
+    conn.commit()
+    conn.close()
 
 
-class User:
-    def __init__(self, name, password, user_id=None, balance=0, savings_balance=0):
-        self.name = name
-        self.id = user_id
-        self.balance = float(balance)
-        self.savings_balance = float(savings_balance or 0)
-        self.password = password
-    
-    def display(self):
-        print("Name:", self.name)
-        print("ID:", self.id)
-        print("Wallet Balance: ₹", self.balance)
-        print("Savings Balance: ₹", self.savings_balance)
+def get_user(user_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, name, balance, savings_balance FROM users WHERE id=?",
+        (user_id,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {'id': row[0], 'name': row[1], 'balance': float(row[2]), 'savings': float(row[3] or 0)}
+    return None
 
 
+def login_required():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return None
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+@app.route('/', methods=['GET', 'POST'])
 def login():
-    name = input("Enter Username: ").strip()
-    passw = input("Enter Password: ").strip()
-    
-    try:
-        conn = psycopg2.connect(db_url, sslmode='require')
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        name = request.form['name'].strip()
+        pw = request.form['password'].strip()
+        conn = get_db()
         cursor = conn.cursor()
-
         cursor.execute(
-            "SELECT * FROM users WHERE name=%s AND password=%s",
-            (name, passw)
+            "SELECT id, name FROM users WHERE name=? AND password=?",
+            (name, pw)
         )
-
-        user_data = cursor.fetchone()
+        row = cursor.fetchone()
         conn.close()
-
-        if user_data:
-            savings = user_data[4] if len(user_data) > 4 else 0
-            user = User(user_data[1], user_data[3], user_data[0], user_data[2], savings)
-            print("\nLogin Successful!")
-            return user
-        else:
-            print("\nInvalid Credentials!")
-            return None
-    except Exception as e:
-        print(f"Login Error: {e}")
-        return None
+        if row:
+            session['user_id'] = row[0]
+            session['user_name'] = row[1]
+            return redirect(url_for('dashboard'))
+        flash('Invalid credentials.', 'error')
+    return render_template('login.html')
 
 
-def createAccount():
-    n = input("Enter Name: ").strip()
-    p = input("Enter Password: ").strip()
-    
-    try:
-        conn = psycopg2.connect(db_url, sslmode='require')
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "INSERT INTO users (name, password, savings_balance) VALUES (%s, %s, 0)",
-            (n, p)
-        )
-
-        conn.commit()
-        conn.close()
-        
-        print("\nAccount created successfully!\n")
-    except Exception as e:
-        print(f"Account Creation Error: {e}")
-
-
-def transfersMenu(user):
-    while True:
-        print("\n--- TRANSFERS ---")
-        print("1. Self Transfer")
-        print("2. Other Bank Transfer")
-        print("3. UPI Transfer")
-        print("4. International Transaction")
-        print("5. NEFT Transfer")
-        print("6. Cheque Approval")
-        print("7. Back")
-
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        name = request.form['name'].strip()
+        pw = request.form['password'].strip()
         try:
-            choice = int(input("Choice: "))
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO users (name, password, savings_balance) VALUES (?,?,0)",
+                (name, pw)
+            )
+            conn.commit()
+            conn.close()
+            flash('Account created! Please log in.', 'success')
+            return redirect(url_for('login'))
+        except Exception:
+            flash('Username already taken.', 'error')
+    return render_template('register.html')
 
-            if choice == 1:
-                print(f"Wallet: ₹{user.balance} | Savings: ₹{user.savings_balance}")
-                print("1. Wallet → Savings\n2. Savings → Wallet")
-                direction = int(input("Choice: "))
-                amt = float(input("Amount: ₹"))
 
-                if direction == 1:
-                    if amt <= 0 or amt > user.balance:
-                        print("Invalid amount.")
-                    else:
-                        user.balance -= amt
-                        user.savings_balance += amt
-                        conn = psycopg2.connect(db_url, sslmode='require')
-                        cursor = conn.cursor()
-                        cursor.execute("UPDATE users SET balance=%s, savings_balance=%s WHERE id=%s", (user.balance, user.savings_balance, user.id))
-                        cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, "SELF-SAVINGS", amt, "SELF"))
-                        conn.commit()
-                        conn.close()
-                        print("Transferred to savings!")
-                elif direction == 2:
-                    if amt <= 0 or amt > user.savings_balance:
-                        print("Invalid amount.")
-                    else:
-                        user.savings_balance -= amt
-                        user.balance += amt
-                        conn = psycopg2.connect(db_url, sslmode='require')
-                        cursor = conn.cursor()
-                        cursor.execute("UPDATE users SET balance=%s, savings_balance=%s WHERE id=%s", (user.balance, user.savings_balance, user.id))
-                        cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, "SELF-WALLET", amt, "SELF"))
-                        conn.commit()
-                        conn.close()
-                        print("Transferred to wallet!")
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
-            elif choice == 2:
-                recipient = input("Recipient Username: ").strip()
-                if recipient == user.name:
-                    print("Use Self Transfer for own account.")
-                    continue
-                amt = float(input("Amount: ₹"))
-                if amt <= 0 or amt > user.balance:
-                    print("Invalid amount.")
-                    continue
-                conn = psycopg2.connect(db_url, sslmode='require')
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+
+@app.route('/dashboard')
+def dashboard():
+    redir = login_required()
+    if redir:
+        return redir
+    user = get_user(session['user_id'])
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT type, amount, timestamp FROM transactions WHERE user_id=? ORDER BY timestamp DESC LIMIT 6",
+        (user['id'],)
+    )
+    recent = cursor.fetchall()
+    cursor.execute("SELECT COUNT(*) FROM loans WHERE user_id=? AND status='ACTIVE'", (user['id'],))
+    active_loans = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM bills WHERE user_id=? AND status='PENDING'", (user['id'],))
+    pending_bills = cursor.fetchone()[0]
+    cursor.execute("SELECT COALESCE(SUM(amount),0) FROM investments WHERE user_id=?", (user['id'],))
+    total_invested = float(cursor.fetchone()[0])
+    conn.close()
+    return render_template(
+        'dashboard.html',
+        user=user,
+        recent=recent,
+        active_loans=active_loans,
+        pending_bills=pending_bills,
+        total_invested=total_invested
+    )
+
+
+# ── Deposit / Withdraw ────────────────────────────────────────────────────────
+
+@app.route('/deposit', methods=['GET', 'POST'])
+def deposit():
+    redir = login_required()
+    if redir:
+        return redir
+    user = get_user(session['user_id'])
+    if request.method == 'POST':
+        try:
+            amount = float(request.form['amount'])
+            if amount <= 0:
+                flash('Enter a positive amount.', 'error')
+            else:
+                conn = get_db()
                 cursor = conn.cursor()
-                cursor.execute("SELECT id FROM users WHERE name=%s", (recipient,))
-                rec = cursor.fetchone()
-                if not rec:
-                    print("User not found.")
+                cursor.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, user['id']))
+                cursor.execute(
+                    "INSERT INTO transactions (user_id, type, amount) VALUES (?,'DEPOSIT',?)",
+                    (user['id'], amount)
+                )
+                conn.commit()
+                conn.close()
+                flash(f'₹{amount:,.2f} deposited!', 'success')
+                return redirect(url_for('dashboard'))
+        except Exception:
+            flash('Invalid input.', 'error')
+    return render_template('deposit.html', user=user)
+
+
+@app.route('/withdraw', methods=['GET', 'POST'])
+def withdraw():
+    redir = login_required()
+    if redir:
+        return redir
+    user = get_user(session['user_id'])
+    if request.method == 'POST':
+        try:
+            amount = float(request.form['amount'])
+            if amount <= 0:
+                flash('Enter a positive amount.', 'error')
+            elif amount > user['balance']:
+                flash('Insufficient balance.', 'error')
+            else:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, user['id']))
+                cursor.execute(
+                    "INSERT INTO transactions (user_id, type, amount) VALUES (?,'WITHDRAWAL',?)",
+                    (user['id'], amount)
+                )
+                conn.commit()
+                conn.close()
+                flash(f'₹{amount:,.2f} withdrawn!', 'success')
+                return redirect(url_for('dashboard'))
+        except Exception:
+            flash('Invalid input.', 'error')
+    return render_template('withdraw.html', user=user)
+
+
+# ── Transactions ──────────────────────────────────────────────────────────────
+
+@app.route('/transactions')
+def transactions():
+    redir = login_required()
+    if redir:
+        return redir
+    user = get_user(session['user_id'])
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT type, amount, timestamp FROM transactions WHERE user_id=? ORDER BY timestamp DESC",
+        (user['id'],)
+    )
+    history = cursor.fetchall()
+    conn.close()
+    return render_template('transactions.html', user=user, history=history)
+
+
+# ── Loans ─────────────────────────────────────────────────────────────────────
+
+@app.route('/loans', methods=['GET', 'POST'])
+def loans():
+    redir = login_required()
+    if redir:
+        return redir
+    user = get_user(session['user_id'])
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        try:
+            if action == 'apply':
+                principal = float(request.form['principal'])
+                if principal <= 0:
+                    flash('Invalid amount.', 'error')
+                else:
+                    total = round(principal * 1.05, 2)
+                    conn = get_db()
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE users SET balance=balance+? WHERE id=?", (principal, user['id']))
+                    cursor.execute(
+                        "INSERT INTO loans (user_id, principal, total_owed) VALUES (?,?,?)",
+                        (user['id'], principal, total)
+                    )
+                    cursor.execute(
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (?,'LOAN_DISBURSEMENT',?)",
+                        (user['id'], principal)
+                    )
+                    conn.commit()
                     conn.close()
-                    continue
-                user.balance -= amt
-                cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                cursor.execute("UPDATE users SET balance=balance+%s WHERE id=%s", (amt, rec[0]))
-                cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, recipient, amt, "BANK"))
-                cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s,%s,%s)", (user.id, "TRANSFER_OUT", amt))
-                conn.commit()
-                conn.close()
-                print(f"₹{amt} transferred to {recipient}!")
+                    flash(f'Loan of ₹{principal:,.2f} approved! Total owed: ₹{total:,.2f}', 'success')
 
-            elif choice == 3:
-                upi_id = input("Enter UPI ID (e.g. name@bank): ").strip()
-                amt = float(input("Amount: ₹"))
-                if amt <= 0 or amt > user.balance:
-                    print("Invalid amount.")
-                    continue
-                user.balance -= amt
-                conn = psycopg2.connect(db_url, sslmode='require')
+            elif action == 'repay':
+                loan_id = int(request.form['loan_id'])
+                amount = float(request.form['amount'])
+                conn = get_db()
                 cursor = conn.cursor()
-                cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, upi_id, amt, "UPI"))
-                cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s,%s,%s)", (user.id, "UPI_TRANSFER", amt))
-                conn.commit()
-                conn.close()
-                print(f"₹{amt} sent to {upi_id}!")
+                cursor.execute(
+                    "SELECT total_owed, amount_paid FROM loans WHERE id=? AND user_id=? AND status='ACTIVE'",
+                    (loan_id, user['id'])
+                )
+                loan = cursor.fetchone()
+                if not loan:
+                    flash('Invalid loan.', 'error')
+                elif amount <= 0 or amount > user['balance']:
+                    flash('Invalid amount.', 'error')
+                else:
+                    owed, paid = float(loan[0]), float(loan[1])
+                    pay = min(amount, owed - paid)
+                    new_paid = paid + pay
+                    status = 'CLEARED' if new_paid >= owed else 'ACTIVE'
+                    cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (pay, user['id']))
+                    cursor.execute(
+                        "UPDATE loans SET amount_paid=?, status=? WHERE id=?",
+                        (new_paid, status, loan_id)
+                    )
+                    cursor.execute(
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (?,'LOAN_REPAYMENT',?)",
+                        (user['id'], pay)
+                    )
+                    conn.commit()
+                    conn.close()
+                    msg = f'₹{pay:,.2f} repaid!'
+                    if status == 'CLEARED':
+                        msg += ' Loan fully cleared!'
+                    flash(msg, 'success')
 
-            elif choice == 4:
-                print("Select Currency:")
-                print("1. USD ($1 = ₹83)\n2. EUR (€1 = ₹90)\n3. GBP (£1 = ₹105)")
-                curr_choice = int(input("Choice: "))
-                rates = {1: ("USD", 83), 2: ("EUR", 90), 3: ("GBP", 105)}
-                if curr_choice not in rates:
-                    print("Invalid currency.")
-                    continue
-                curr_name, rate = rates[curr_choice]
-                foreign_amt = float(input(f"Amount in {curr_name}: "))
-                inr_amt = round(foreign_amt * rate, 2)
-                print(f"Total deduction: ₹{inr_amt}")
-                confirm = input("Confirm? (yes): ").strip().lower()
-                if confirm != 'yes':
-                    continue
-                if inr_amt > user.balance:
-                    print("Insufficient balance!")
-                    continue
-                user.balance -= inr_amt
-                conn = psycopg2.connect(db_url, sslmode='require')
+        except Exception as e:
+            flash(f'Error: {e}', 'error')
+        return redirect(url_for('loans'))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, principal, total_owed, amount_paid, status, timestamp FROM loans WHERE user_id=? ORDER BY timestamp DESC",
+        (user['id'],)
+    )
+    all_loans = cursor.fetchall()
+    conn.close()
+    user = get_user(session['user_id'])
+    return render_template('loans.html', user=user, loans=all_loans)
+
+
+# ── Bills ─────────────────────────────────────────────────────────────────────
+
+@app.route('/bills', methods=['GET', 'POST'])
+def bills():
+    redir = login_required()
+    if redir:
+        return redir
+    user = get_user(session['user_id'])
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        try:
+            if action == 'add':
+                bill_type = request.form['bill_type'].strip().upper()
+                amount = float(request.form['amount'])
+                conn = get_db()
                 cursor = conn.cursor()
-                cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, curr_name, inr_amt, "INTERNATIONAL"))
-                cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s,%s,%s)", (user.id, "INTL_TRANSFER", inr_amt))
+                cursor.execute(
+                    "INSERT INTO bills (user_id, bill_type, amount, due_date) VALUES (?,?,?,date('now','+7 days'))",
+                    (user['id'], bill_type, amount)
+                )
                 conn.commit()
                 conn.close()
-                print(f"{curr_name} {foreign_amt} sent (₹{inr_amt} deducted)!")
+                flash('Bill added!', 'success')
 
-            elif choice == 5:
-                recipient = input("Recipient Username: ").strip()
-                if recipient == user.name:
-                    print("Use Self Transfer.")
-                    continue
-                amt = float(input("Amount: ₹"))
+            elif action == 'pay':
+                bill_id = int(request.form['bill_id'])
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT amount FROM bills WHERE id=? AND user_id=? AND status='PENDING'",
+                    (bill_id, user['id'])
+                )
+                row = cursor.fetchone()
+                if not row:
+                    flash('Invalid bill.', 'error')
+                elif float(row[0]) > user['balance']:
+                    flash('Insufficient balance.', 'error')
+                else:
+                    amt = float(row[0])
+                    cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amt, user['id']))
+                    cursor.execute("UPDATE bills SET status='PAID' WHERE id=?", (bill_id,))
+                    cursor.execute(
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (?,'BILL_PAYMENT',?)",
+                        (user['id'], amt)
+                    )
+                    conn.commit()
+                    flash('Bill paid!', 'success')
+                conn.close()
+
+        except Exception as e:
+            flash(f'Error: {e}', 'error')
+        return redirect(url_for('bills'))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, bill_type, amount, due_date, status FROM bills WHERE user_id=? ORDER BY status, due_date",
+        (user['id'],)
+    )
+    all_bills = cursor.fetchall()
+    conn.close()
+    user = get_user(session['user_id'])
+    return render_template('bills.html', user=user, bills=all_bills)
+
+
+# ── Transfers ─────────────────────────────────────────────────────────────────
+
+@app.route('/transfers', methods=['GET', 'POST'])
+def transfers():
+    redir = login_required()
+    if redir:
+        return redir
+    user = get_user(session['user_id'])
+
+    if request.method == 'POST':
+        t = request.form.get('transfer_type')
+        try:
+            if t == 'self':
+                direction = request.form['direction']
+                amount = float(request.form['amount'])
+                if direction == 'to_savings':
+                    if amount <= 0 or amount > user['balance']:
+                        flash('Invalid amount.', 'error')
+                    else:
+                        conn = get_db()
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "UPDATE users SET balance=balance-?, savings_balance=savings_balance+? WHERE id=?",
+                            (amount, amount, user['id'])
+                        )
+                        cursor.execute(
+                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,'SELF-SAVINGS',?,'SELF')",
+                            (user['id'], amount)
+                        )
+                        conn.commit()
+                        conn.close()
+                        flash(f'₹{amount:,.2f} moved to savings!', 'success')
+                elif direction == 'to_wallet':
+                    if amount <= 0 or amount > user['savings']:
+                        flash('Invalid amount.', 'error')
+                    else:
+                        conn = get_db()
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "UPDATE users SET balance=balance+?, savings_balance=savings_balance-? WHERE id=?",
+                            (amount, amount, user['id'])
+                        )
+                        cursor.execute(
+                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,'SELF-WALLET',?,'SELF')",
+                            (user['id'], amount)
+                        )
+                        conn.commit()
+                        conn.close()
+                        flash(f'₹{amount:,.2f} moved to wallet!', 'success')
+
+            elif t == 'bank':
+                recipient = request.form['recipient'].strip()
+                amount = float(request.form['amount'])
+                if recipient == user['name']:
+                    flash('Use Self Transfer for your own account.', 'error')
+                elif amount <= 0 or amount > user['balance']:
+                    flash('Invalid amount.', 'error')
+                else:
+                    conn = get_db()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT id FROM users WHERE name=?", (recipient,))
+                    rec = cursor.fetchone()
+                    if not rec:
+                        flash('User not found.', 'error')
+                    else:
+                        cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, user['id']))
+                        cursor.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, rec[0]))
+                        cursor.execute(
+                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,?,?,'BANK')",
+                            (user['id'], recipient, amount)
+                        )
+                        cursor.execute(
+                            "INSERT INTO transactions (user_id, type, amount) VALUES (?,'TRANSFER_OUT',?)",
+                            (user['id'], amount)
+                        )
+                        conn.commit()
+                        flash(f'₹{amount:,.2f} sent to {recipient}!', 'success')
+                    conn.close()
+
+            elif t == 'upi':
+                upi_id = request.form['upi_id'].strip()
+                amount = float(request.form['amount'])
+                if amount <= 0 or amount > user['balance']:
+                    flash('Invalid amount.', 'error')
+                else:
+                    conn = get_db()
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, user['id']))
+                    cursor.execute(
+                        "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,?,?,'UPI')",
+                        (user['id'], upi_id, amount)
+                    )
+                    cursor.execute(
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (?,'UPI_TRANSFER',?)",
+                        (user['id'], amount)
+                    )
+                    conn.commit()
+                    conn.close()
+                    flash(f'₹{amount:,.2f} sent to {upi_id}!', 'success')
+
+            elif t == 'international':
+                currency = request.form['currency']
+                foreign_amt = float(request.form['foreign_amount'])
+                rates = {'USD': 83, 'EUR': 90, 'GBP': 105}
+                if currency not in rates:
+                    flash('Invalid currency.', 'error')
+                else:
+                    inr = round(foreign_amt * rates[currency], 2)
+                    if inr > user['balance']:
+                        flash('Insufficient balance.', 'error')
+                    else:
+                        conn = get_db()
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (inr, user['id']))
+                        cursor.execute(
+                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,?,?,'INTERNATIONAL')",
+                            (user['id'], currency, inr)
+                        )
+                        cursor.execute(
+                            "INSERT INTO transactions (user_id, type, amount) VALUES (?,'INTL_TRANSFER',?)",
+                            (user['id'], inr)
+                        )
+                        conn.commit()
+                        conn.close()
+                        flash(f'{currency} {foreign_amt:.2f} (₹{inr:,.2f}) transferred!', 'success')
+
+            elif t == 'neft':
+                recipient = request.form['recipient'].strip()
+                amount = float(request.form['amount'])
                 fee = 5.0
-                total = amt + fee
-                if amt <= 0 or total > user.balance:
-                    print("Insufficient balance! (includes ₹5 NEFT fee)")
-                    continue
-                conn = psycopg2.connect(db_url, sslmode='require')
-                cursor = conn.cursor()
-                cursor.execute("SELECT id FROM users WHERE name=%s", (recipient,))
-                rec = cursor.fetchone()
-                if not rec:
-                    print("User not found.")
-                    conn.close()
-                    continue
-                print(f"Sending ₹{amt} + ₹{fee} fee = ₹{total}")
-                confirm = input("Confirm? (yes): ").strip().lower()
-                if confirm != 'yes':
-                    conn.close()
-                    continue
-                user.balance -= total
-                cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                cursor.execute("UPDATE users SET balance=balance+%s WHERE id=%s", (amt, rec[0]))
-                cursor.execute("INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,%s)", (user.id, recipient, amt, "NEFT"))
-                cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s,%s,%s)", (user.id, "NEFT_TRANSFER", total))
-                conn.commit()
-                conn.close()
-                print(f"NEFT of ₹{amt} to {recipient} done!")
-
-            elif choice == 6:
-                print("1. Issue Cheque\n2. View Pending Cheques\n3. Approve Cheque")
-                c_choice = int(input("Choice: "))
-                conn = psycopg2.connect(db_url, sslmode='require')
-                cursor = conn.cursor()
-
-                if c_choice == 1:
-                    receiver = input("Payee Name: ").strip()
-                    amt = float(input("Amount: ₹"))
-                    if amt <= 0 or amt > user.balance:
-                        print("Invalid amount.")
+                total = amount + fee
+                if amount <= 0 or total > user['balance']:
+                    flash('Insufficient balance! (₹5 NEFT fee applies)', 'error')
+                else:
+                    conn = get_db()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT id FROM users WHERE name=?", (recipient,))
+                    rec = cursor.fetchone()
+                    if not rec:
+                        flash('User not found.', 'error')
                     else:
-                        cursor.execute("INSERT INTO cheques (issuer_id, receiver_name, amount) VALUES (%s,%s,%s)", (user.id, receiver, amt))
+                        cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (total, user['id']))
+                        cursor.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, rec[0]))
+                        cursor.execute(
+                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,?,?,'NEFT')",
+                            (user['id'], recipient, amount)
+                        )
+                        cursor.execute(
+                            "INSERT INTO transactions (user_id, type, amount) VALUES (?,'NEFT_TRANSFER',?)",
+                            (user['id'], total)
+                        )
                         conn.commit()
-                        print("Cheque issued!")
+                        flash(f'NEFT of ₹{amount:,.2f} to {recipient} done! (₹5 fee)', 'success')
+                    conn.close()
 
-                elif c_choice == 2:
-                    cursor.execute("SELECT id, receiver_name, amount, issued_at FROM cheques WHERE issuer_id=%s AND status='PENDING'", (user.id,))
-                    cheques = cursor.fetchall()
-                    if not cheques:
-                        print("No pending cheques issued by you.")
-                    for ch in cheques:
-                        print(f"ID:{ch[0]} | To: {ch[1]} | ₹{ch[2]} | Issued: {ch[3]}")
+            elif t == 'issue_cheque':
+                receiver = request.form['receiver'].strip()
+                amount = float(request.form['amount'])
+                if amount <= 0 or amount > user['balance']:
+                    flash('Invalid amount.', 'error')
+                else:
+                    conn = get_db()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO cheques (issuer_id, receiver_name, amount) VALUES (?,?,?)",
+                        (user['id'], receiver, amount)
+                    )
+                    conn.commit()
+                    conn.close()
+                    flash('Cheque issued!', 'success')
 
-                elif c_choice == 3:
-                    cursor.execute("SELECT id, issuer_id, amount FROM cheques WHERE receiver_name=%s AND status='PENDING'", (user.name,))
-                    cheques = cursor.fetchall()
-                    if not cheques:
-                        print("No cheques to approve.")
-                        conn.close()
-                        continue
-                    for ch in cheques:
-                        print(f"ID:{ch[0]} | Amount: ₹{ch[2]}")
-                    cid = int(input("Cheque ID to approve: "))
-                    cursor.execute("SELECT issuer_id, amount FROM cheques WHERE id=%s AND receiver_name=%s AND status='PENDING'", (cid, user.name))
-                    cheque = cursor.fetchone()
-                    if not cheque:
-                        print("Invalid cheque.")
-                        conn.close()
-                        continue
-                    issuer_id, amt = cheque[0], float(cheque[1])
-                    cursor.execute("SELECT balance FROM users WHERE id=%s", (issuer_id,))
+            elif t == 'approve_cheque':
+                cheque_id = int(request.form['cheque_id'])
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT issuer_id, amount FROM cheques WHERE id=? AND receiver_name=? AND status='PENDING'",
+                    (cheque_id, user['name'])
+                )
+                row = cursor.fetchone()
+                if not row:
+                    flash('Invalid cheque.', 'error')
+                else:
+                    issuer_id, amt = row[0], float(row[1])
+                    cursor.execute("SELECT balance FROM users WHERE id=?", (issuer_id,))
                     issuer_bal = float(cursor.fetchone()[0])
                     if issuer_bal < amt:
-                        print("Issuer has insufficient funds!")
-                        conn.close()
-                        continue
-                    user.balance += amt
-                    cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (amt, issuer_id))
-                    cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                    cursor.execute("UPDATE cheques SET status='CLEARED' WHERE id=%s", (cid,))
-                    cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s,%s,%s)", (user.id, "CHEQUE_RECEIVED", amt))
-                    conn.commit()
-                    print(f"Cheque approved! ₹{amt} added to wallet.")
-
-                conn.close()
-
-            elif choice == 7:
-                break
-
-        except Exception as e:
-            print("Error:", e)
-
-
-def pfmMenu(user):
-    while True:
-        print("\n--- PERSONAL FINANCE MANAGEMENT ---")
-        print("1. Set Financial Goal")
-        print("2. Add to Goal")
-        print("3. Set Budget Limit")
-        print("4. View Savings Status & Insights")
-        print("5. Back to Dashboard")
-
-        try:
-            choice = int(input("Choice: "))
-            if choice == 1:
-                name = input("Goal Name: ")
-                target = float(input("Target Amount: ₹"))
-                conn = psycopg2.connect(db_url, sslmode='require')
-                cursor = conn.cursor()
-                cursor.execute("INSERT INTO goals (user_id, name, target_amount) VALUES (%s, %s, %s)", (user.id, name, target))
-                conn.commit()
-                conn.close()
-                print("Goal set!")
-
-            elif choice == 2:
-                conn = psycopg2.connect(db_url, sslmode='require')
-                cursor = conn.cursor()
-                cursor.execute("SELECT id, name, target_amount, current_amount FROM goals WHERE user_id=%s", (user.id,))
-                goals = cursor.fetchall()
-                if not goals:
-                    print("No goals found")
-                    conn.close()
-                    continue
-                for g in goals:
-                    print(f"ID: {g[0]} | {g[1]}: ₹{g[3]}/₹{g[2]}")
-                gid = int(input("Goal ID: "))
-                amt = float(input("Amount to add: ₹"))
-                if 0 < amt <= user.balance:
-                    user.balance -= amt
-                    cursor.execute("UPDATE goals SET current_amount = current_amount + %s WHERE id=%s", (amt, gid))
-                    cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                    cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)", (user.id, "GOAL_CONTRIBUTION", amt))
-                    conn.commit()
-                    print("Contributed successfully!")
-                else: print("Invalid Amount/Balance")
-                conn.close()
-
-            elif choice == 3:
-                cat = input("Category (e.g. Food, Travel): ")
-                limit = float(input("Monthly Limit: ₹"))
-                conn = psycopg2.connect(db_url, sslmode='require')
-                cursor = conn.cursor()
-                cursor.execute("INSERT INTO budgets (user_id, category, limit_amount) VALUES (%s, %s, %s)", (user.id, cat, limit))
-                conn.commit()
-                conn.close()
-                print("Budget set!")
-
-            elif choice == 4:
-                print(f"Wallet Balance: ₹{user.balance}")
-                print(f"Savings Account Balance: ₹{user.savings_balance}")
-                conn = psycopg2.connect(db_url, sslmode='require')
-                cursor = conn.cursor()
-                cursor.execute("SELECT name, target_amount, current_amount FROM goals WHERE user_id=%s", (user.id,))
-                for g in cursor.fetchall():
-                    progress = (g[2]/g[1])*100 if g[1] > 0 else 0
-                    print(f"Goal: {g[0]} - {progress:.1f}% Complete (₹{g[2]} of ₹{g[1]})")
-                conn.close()
-
-            elif choice == 5:
-                break
-        except Exception as e:
-            print("Error:", e)
-
-
-def dashboard(user):
-    while True:
-        print("\n--- DASHBOARD ---")
-        print("1. View Balance")
-        print("2. Deposit Money")
-        print("3. Withdraw Money")
-        print("4. View Transaction History")
-        print("5. Apply for a Loan")
-        print("6. Repay a Loan")
-        print("7. Pay Bills")
-        print("8. Transfers")
-        print("9. Personal Finance Management")
-        print("10. Logout")
-
-        try:
-            choice = int(input("Enter your choice: "))
-
-            if choice == 1:
-                print(f"Wallet Balance: ₹{user.balance}")
-                print(f"Savings Balance: ₹{user.savings_balance}")
-
-            elif choice == 2:
-                amount = float(input("Enter Amount to deposit: "))
-                if amount > 0:
-                    user.balance += amount
-                    conn = psycopg2.connect(db_url, sslmode='require')
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                    cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)", (user.id, 'DEPOSIT', amount))
-                    conn.commit()
-                    conn.close()
-                    print("Amount deposited successfully!")
-                else:
-                    print("Invalid Amount")
-
-            elif choice == 3:
-                withdraw = float(input("Enter Amount to Withdraw: "))
-                if withdraw > user.balance:
-                    print("Insufficient balance!")
-                elif withdraw > 0:
-                    user.balance -= withdraw
-                    conn = psycopg2.connect(db_url, sslmode='require')
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                    cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)", (user.id, 'WITHDRAWAL', withdraw))
-                    conn.commit()
-                    conn.close()
-                    print("Amount withdrawn successfully!")
-                else:
-                    print("Invalid Amount")
-
-            elif choice == 4:
-                print("\n--- TRANSACTION HISTORY ---")
-                conn = psycopg2.connect(db_url, sslmode='require')
-                cursor = conn.cursor()
-                cursor.execute("SELECT type, amount, timestamp FROM transactions WHERE user_id=%s ORDER BY timestamp DESC", (user.id,))
-                history = cursor.fetchall()
-                conn.close()
-
-                if not history:
-                    print("No transactions found.")
-                else:
-                    for record in history:
-                        print(f"[{record[2]}] {record[0]}: ₹{record[1]}")
-
-            elif choice == 5:
-                principal = float(input("Enter loan amount requested: ₹"))
-                if principal > 0:
-                    interest_rate = 5.0
-                    total_owed = principal + (principal * (interest_rate / 100))
-                    print(f"You will owe: ₹{total_owed}")
-                    confirm = input("Type 'yes' to accept: ").strip().lower()
-
-                    if confirm == 'yes':
-                        user.balance += principal
-                        conn = psycopg2.connect(db_url, sslmode='require')
-                        cursor = conn.cursor()
-                        cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                        cursor.execute("INSERT INTO loans (user_id, principal, total_owed) VALUES (%s, %s, %s)", (user.id, principal, total_owed))
-                        cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)", (user.id, 'LOAN_DISBURSEMENT', principal))
-                        conn.commit()
-                        conn.close()
-                        print("Loan approved!")
-                else:
-                    print("Invalid amount.")
-
-            elif choice == 6:
-                conn = psycopg2.connect(db_url, sslmode='require')
-                cursor = conn.cursor()
-                cursor.execute("SELECT id, total_owed, amount_paid FROM loans WHERE user_id=%s AND status='ACTIVE'", (user.id,))
-                active_loans = cursor.fetchall()
-
-                if not active_loans:
-                    print("No active loans!")
-                    conn.close()
-                    continue
-
-                for loan in active_loans:
-                    print(f"Loan ID: {loan[0]} | Remaining: ₹{loan[1] - loan[2]}")
-
-                try:
-                    target_loan = int(input("Loan ID: "))
-                    pay_amount = float(input("Amount: ₹"))
-
-                    if pay_amount > user.balance:
-                        print("Insufficient balance!")
-                        conn.close()
-                        continue
-
-                    cursor.execute("SELECT total_owed, amount_paid FROM loans WHERE id=%s AND user_id=%s AND status='ACTIVE'", (target_loan, user.id))
-                    loan_data = cursor.fetchone()
-
-                    if loan_data:
-                        owed, paid = float(loan_data[0]), float(loan_data[1])
-                        remaining = owed - paid
-
-                        if pay_amount > remaining:
-                            pay_amount = remaining
-
-                        user.balance -= pay_amount
-                        new_paid = paid + pay_amount
-                        status = 'CLEARED' if new_paid >= owed else 'ACTIVE'
-
-                        cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                        cursor.execute("UPDATE loans SET amount_paid=%s, status=%s WHERE id=%s", (new_paid, status, target_loan))
-                        cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)", (user.id, 'LOAN_REPAYMENT', pay_amount))
-                        conn.commit()
-                        print("Payment successful!")
-                except Exception as e:
-                    print("Invalid input:", e)
-                conn.close()
-
-            elif choice == 7:
-                print("\n--- BILL PAYMENT ---")
-                print("1. Electricity\n2. Mobile\n3. Water\n4. Rent")
-                try:
-                    b_choice = int(input("Choice: "))
-                    types = {1: "ELECTRICITY", 2: "MOBILE", 3: "WATER", 4: "RENT"}
-                    if b_choice in types:
-                        amount = float(input("Amount: ₹"))
-                        if 0 < amount <= user.balance:
-                            user.balance -= amount
-                            conn = psycopg2.connect(db_url, sslmode='require')
-                            cursor = conn.cursor()
-                            cursor.execute("UPDATE users SET balance=%s WHERE id=%s", (user.balance, user.id))
-                            cursor.execute("INSERT INTO bills (user_id, bill_type, amount) VALUES (%s, %s, %s)", (user.id, types[b_choice], amount))
-                            cursor.execute("INSERT INTO transactions (user_id, type, amount) VALUES (%s, %s, %s)", (user.id, 'BILL_PAYMENT', amount))
-                            conn.commit()
-                            conn.close()
-                            print("Bill paid successfully!")
-                        else:
-                            print("Invalid / Insufficient balance")
+                        flash('Issuer has insufficient funds.', 'error')
                     else:
-                        print("Invalid choice")
-                except:
-                    print("Invalid input")
+                        cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amt, issuer_id))
+                        cursor.execute("UPDATE users SET balance=balance+? WHERE id=?", (amt, user['id']))
+                        cursor.execute("UPDATE cheques SET status='CLEARED' WHERE id=?", (cheque_id,))
+                        cursor.execute(
+                            "INSERT INTO transactions (user_id, type, amount) VALUES (?,'CHEQUE_RECEIVED',?)",
+                            (user['id'], amt)
+                        )
+                        conn.commit()
+                        flash(f'Cheque approved! ₹{amt:,.2f} added to wallet.', 'success')
+                conn.close()
 
-            elif choice == 8:
-                transfersMenu(user)
-
-            elif choice == 9:
-                pfmMenu(user)
-
-            elif choice == 10:
-                print("Logging out...")
-                break
-            else:
-                print("Invalid choice")
-        except ValueError:
-            print("Enter a valid number!")
         except Exception as e:
-            print("Error:", e)
+            flash(f'Error: {e}', 'error')
+        return redirect(url_for('transfers'))
 
-def loginPage():
-    db_init()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT receiver_info, amount, type, timestamp FROM transfers WHERE sender_id=? ORDER BY timestamp DESC LIMIT 10",
+        (user['id'],)
+    )
+    recent_transfers = cursor.fetchall()
+    cursor.execute(
+        "SELECT id, issuer_id, amount, issued_at FROM cheques WHERE receiver_name=? AND status='PENDING'",
+        (user['name'],)
+    )
+    pending_cheques = cursor.fetchall()
+    conn.close()
+    user = get_user(session['user_id'])
+    return render_template('transfers.html', user=user, recent_transfers=recent_transfers, pending_cheques=pending_cheques)
 
-    while True:
-        print("\n1. Login\n2. Sign Up\n3. Exit")
 
+# ── PFM ───────────────────────────────────────────────────────────────────────
+
+@app.route('/pfm', methods=['GET', 'POST'])
+def pfm():
+    redir = login_required()
+    if redir:
+        return redir
+    user = get_user(session['user_id'])
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        conn = get_db()
+        cursor = conn.cursor()
         try:
-            c = int(input("Enter choice: "))
+            if action == 'add_goal':
+                name = request.form['goal_name'].strip()
+                target = float(request.form['target_amount'])
+                cursor.execute(
+                    "INSERT INTO goals (user_id, goal_name, target_amount) VALUES (?,?,?)",
+                    (user['id'], name, target)
+                )
+                conn.commit()
+                flash('Goal created!', 'success')
 
-            if c == 1:
-                user = login()
-                if user:
-                    dashboard(user)
+            elif action == 'contribute':
+                goal_id = int(request.form['goal_id'])
+                amount = float(request.form['amount'])
+                if amount <= 0 or amount > user['balance']:
+                    flash('Invalid amount.', 'error')
+                else:
+                    cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, user['id']))
+                    cursor.execute(
+                        "UPDATE goals SET saved_amount=saved_amount+? WHERE id=? AND user_id=?",
+                        (amount, goal_id, user['id'])
+                    )
+                    cursor.execute(
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (?,'GOAL_CONTRIBUTION',?)",
+                        (user['id'], amount)
+                    )
+                    conn.commit()
+                    flash(f'₹{amount:,.2f} added to goal!', 'success')
 
-            elif c == 2:
-                createAccount()
+            elif action == 'add_budget':
+                category = request.form['category'].strip()
+                limit = float(request.form['limit_amount'])
+                cursor.execute(
+                    "INSERT INTO budgets (user_id, category, monthly_limit) VALUES (?,?,?)",
+                    (user['id'], category, limit)
+                )
+                conn.commit()
+                flash('Budget set!', 'success')
 
-            elif c == 3:
-                print("Exiting...")
-                break
-
-            else:
-                print("Invalid Choice")
-
-        except ValueError:
-            print("Enter a valid number!")
         except Exception as e:
-            print("Error:", e)
+            flash(f'Error: {e}', 'error')
+        conn.close()
+        return redirect(url_for('pfm'))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, goal_name, target_amount, saved_amount FROM goals WHERE user_id=? AND status='ACTIVE'",
+        (user['id'],)
+    )
+    goals = cursor.fetchall()
+    cursor.execute(
+        "SELECT id, category, monthly_limit, spent FROM budgets WHERE user_id=?",
+        (user['id'],)
+    )
+    budgets = cursor.fetchall()
+    conn.close()
+    return render_template('pfm.html', user=user, goals=goals, budgets=budgets)
 
 
-# Kick off the application
-if __name__ == "__main__":
-    loginPage()
+# ── Cards ─────────────────────────────────────────────────────────────────────
+
+@app.route('/cards', methods=['GET', 'POST'])
+def cards():
+    redir = login_required()
+    if redir:
+        return redir
+    user = get_user(session['user_id'])
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        conn = get_db()
+        cursor = conn.cursor()
+        try:
+            if action == 'add':
+                num = str(random.randint(1000000000000000, 9999999999999999))
+                cursor.execute(
+                    "INSERT INTO cards (user_id, card_number, expiry_date) VALUES (?,?,'2030-12-31')",
+                    (user['id'], num)
+                )
+                conn.commit()
+                flash(f'Card added: {num[:4]} **** **** {num[-4:]}', 'success')
+
+            elif action == 'block':
+                cursor.execute(
+                    "UPDATE cards SET status='BLOCKED' WHERE id=? AND user_id=?",
+                    (int(request.form['card_id']), user['id'])
+                )
+                conn.commit()
+                flash('Card blocked.', 'success')
+
+            elif action == 'unblock':
+                cursor.execute(
+                    "UPDATE cards SET status='ACTIVE' WHERE id=? AND user_id=?",
+                    (int(request.form['card_id']), user['id'])
+                )
+                conn.commit()
+                flash('Card unblocked.', 'success')
+
+            elif action == 'renew':
+                cursor.execute(
+                    "UPDATE cards SET expiry_date='2035-12-31', status='ACTIVE' WHERE id=? AND user_id=?",
+                    (int(request.form['card_id']), user['id'])
+                )
+                conn.commit()
+                flash('Card renewed until 2035.', 'success')
+
+        except Exception as e:
+            flash(f'Error: {e}', 'error')
+        conn.close()
+        return redirect(url_for('cards'))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, card_number, status, expiry_date FROM cards WHERE user_id=? ORDER BY created_at DESC",
+        (user['id'],)
+    )
+    all_cards = cursor.fetchall()
+    conn.close()
+    return render_template('cards.html', user=user, cards=all_cards)
+
+
+# ── Investments ───────────────────────────────────────────────────────────────
+
+@app.route('/investments', methods=['GET', 'POST'])
+def investments():
+    redir = login_required()
+    if redir:
+        return redir
+    user = get_user(session['user_id'])
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        conn = get_db()
+        cursor = conn.cursor()
+        try:
+            if action == 'safe':
+                inv_type = request.form['inv_type']
+                amount = float(request.form['amount'])
+                rates = {'FD': 0.05, 'BONDS': 0.07, 'MF': 0.10}
+                if inv_type not in rates or amount <= 0 or amount > user['balance']:
+                    flash('Invalid investment.', 'error')
+                else:
+                    returns = round(amount * rates[inv_type], 2)
+                    cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, user['id']))
+                    cursor.execute(
+                        "INSERT INTO investments (user_id, type, amount, returns) VALUES (?,?,?,?)",
+                        (user['id'], inv_type, amount, returns)
+                    )
+                    conn.commit()
+                    flash(f'Invested ₹{amount:,.2f} in {inv_type}! Expected return: ₹{returns:,.2f}', 'success')
+
+            elif action == 'stock':
+                stock = request.form['stock']
+                qty = int(request.form['qty'])
+                prices = {'TechCorp': 100, 'GreenEnergy': 200, 'FinBank': 150}
+                if stock not in prices or qty <= 0:
+                    flash('Invalid stock.', 'error')
+                else:
+                    total = prices[stock] * qty
+                    if total > user['balance']:
+                        flash('Insufficient balance.', 'error')
+                    else:
+                        predicted = round(prices[stock] * random.uniform(0.8, 1.5) * qty, 2)
+                        returns = round(predicted - total, 2)
+                        cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (total, user['id']))
+                        cursor.execute(
+                            "INSERT INTO investments (user_id, type, amount, returns) VALUES (?,?,?,?)",
+                            (user['id'], stock, total, returns)
+                        )
+                        conn.commit()
+                        flash(f'Bought {qty}x {stock} for ₹{total:,}! Predicted value: ₹{predicted:,.2f}', 'success')
+
+        except Exception as e:
+            flash(f'Error: {e}', 'error')
+        conn.close()
+        return redirect(url_for('investments'))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT type, amount, returns, timestamp FROM investments WHERE user_id=? ORDER BY timestamp DESC",
+        (user['id'],)
+    )
+    all_investments = cursor.fetchall()
+    conn.close()
+    return render_template('investments.html', user=user, investments=all_investments)
+
+
+if __name__ == '__main__':
+    db_init()
+    app.run(debug=True)
