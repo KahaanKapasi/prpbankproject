@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %} — Finance{% endblock %}
+{% block page_title %}<h1>Personal Finance</h1>{% endblock %}
+
+{% block content %}
+<div class="grid grid-2 mb-24">
+  <div class="card">
+    <div class="card-title">Set a Goal</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="add_goal">
+      <div class="form-group">
+        <label>Goal Name</label>
+        <input type="text" name="goal_name" placeholder="e.g. New Laptop, Vacation" required>
+      </div>
+      <div class="form-group">
+        <label>Target Amount (₹)</label>
+        <input type="number" name="target_amount" step="0.01" min="1" placeholder="0.00" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Create Goal</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Set Monthly Budget</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="add_budget">
+      <div class="form-group">
+        <label>Category</label>
+        <input type="text" name="category" placeholder="e.g. Food, Travel, Shopping" required>
+      </div>
+      <div class="form-group">
+        <label>Monthly Limit (₹)</label>
+        <input type="number" name="limit_amount" step="0.01" min="1" placeholder="0.00" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Set Budget</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-title">Savings Goals</div>
+    {% if goals %}
+      {% for goal in goals %}
+      <div class="goal-item mb-16">
+        <div class="flex-between mb-8">
+          <span class="goal-name">{{ goal[1] }}</span>
+          <span class="text-muted" style="font-size:13px">₹{{ "%.0f"|format(goal[3]) }} / ₹{{ "%.0f"|format(goal[2]) }}</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: {{ [[(goal[3]/goal[2]*100) if goal[2] > 0 else 0, 0]|max, 100]|min }}%"></div>
+        </div>
+        <div class="flex-between mt-8">
+          <span class="text-muted" style="font-size:12px">{{ "%.1f"|format((goal[3]/goal[2]*100) if goal[2] > 0 else 0) }}% complete</span>
+          <form method="POST" style="display:flex;gap:8px;align-items:center">
+            <input type="hidden" name="action" value="contribute">
+            <input type="hidden" name="goal_id" value="{{ goal[0] }}">
+            <input type="number" name="amount" step="0.01" min="1" placeholder="₹" style="width:90px;padding:6px 10px;font-size:13px">
+            <button type="submit" class="btn btn-primary btn-sm">Add</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty-text">No goals yet. Create one!</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Monthly Budgets</div>
+    {% if budgets %}
+      {% for b in budgets %}
+      <div class="goal-item mb-16">
+        <div class="flex-between mb-8">
+          <span class="goal-name">{{ b[1] }}</span>
+          <span class="text-muted" style="font-size:13px">₹{{ "%.0f"|format(b[3]) }} / ₹{{ "%.0f"|format(b[2]) }}</span>
+        </div>
+        <div class="progress-bar">
+          {% set pct = (b[3]/b[2]*100) if b[2] > 0 else 0 %}
+          <div class="progress-fill {% if pct > 90 %}danger{% elif pct > 70 %}warn-fill{% endif %}" style="width: {{ [pct, 100]|min }}%"></div>
+        </div>
+        <div class="text-muted mt-8" style="font-size:12px">
+          ₹{{ "%.2f"|format(b[2] - b[3]) }} remaining this month
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty-text">No budgets set.</p>
+    {% endif %}
+
+    <hr class="divider">
+    <div class="savings-summary">
+      <div class="summary-row">
+        <span class="summary-label">Wallet Balance</span>
+        <span class="summary-value">₹{{ "%.2f"|format(user.balance) }}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Savings Balance</span>
+        <span class="summary-value blue">₹{{ "%.2f"|format(user.savings) }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
