@@ -9,7 +9,7 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = 'prpbank_dev_secret'
 
-db_url = os.getenv("DATABASE_URL")
+db_url = (os.getenv("DATABASE_URL") or "").strip()
 
 
 def get_db():
