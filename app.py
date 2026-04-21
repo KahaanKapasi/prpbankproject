@@ -1,104 +1,123 @@
 import os
 import random
-import sqlite3
+import psycopg2
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, session, flash
+
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = 'prpbank_dev_secret'
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'bank.db')
+db_url = os.getenv("DATABASE_URL")
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    return psycopg2.connect(db_url)
 
 
 def db_init():
     conn = get_db()
     cursor = conn.cursor()
-    cursor.executescript('''
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
-            balance REAL DEFAULT 0,
+            balance NUMERIC DEFAULT 0,
             password TEXT NOT NULL,
-            savings_balance REAL DEFAULT 0
-        );
+            savings_balance NUMERIC DEFAULT 0
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            type TEXT NOT NULL,
-            amount REAL NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
+            type VARCHAR(50) NOT NULL,
+            amount NUMERIC NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS loans (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            principal REAL NOT NULL,
-            interest_rate REAL DEFAULT 5.0,
-            total_owed REAL NOT NULL,
-            amount_paid REAL DEFAULT 0,
-            status TEXT DEFAULT 'ACTIVE',
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
+            principal NUMERIC NOT NULL,
+            interest_rate NUMERIC DEFAULT 5.0,
+            total_owed NUMERIC NOT NULL,
+            amount_paid NUMERIC DEFAULT 0,
+            status VARCHAR(20) DEFAULT 'ACTIVE',
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS bills (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            bill_type TEXT,
-            amount REAL,
+            bill_type VARCHAR(50),
+            amount NUMERIC,
             due_date DATE,
-            status TEXT DEFAULT 'PENDING'
-        );
+            status VARCHAR(20) DEFAULT 'PENDING'
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS cards (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
             card_number TEXT UNIQUE,
-            status TEXT DEFAULT 'ACTIVE',
+            status VARCHAR(20) DEFAULT 'ACTIVE',
             expiry_date DATE,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS investments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            type TEXT,
-            amount REAL,
-            returns REAL DEFAULT 0,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
+            type VARCHAR(30),
+            amount NUMERIC,
+            returns NUMERIC DEFAULT 0,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS goals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
             goal_name TEXT,
-            target_amount REAL,
-            saved_amount REAL DEFAULT 0,
-            status TEXT DEFAULT 'ACTIVE'
-        );
+            target_amount NUMERIC,
+            saved_amount NUMERIC DEFAULT 0,
+            status VARCHAR(20) DEFAULT 'ACTIVE'
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS budgets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
             category TEXT,
-            monthly_limit REAL,
-            spent REAL DEFAULT 0
-        );
+            monthly_limit NUMERIC,
+            spent NUMERIC DEFAULT 0
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS transfers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
             receiver_info TEXT,
-            amount REAL,
-            type TEXT,
-            status TEXT DEFAULT 'COMPLETED',
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
+            amount NUMERIC,
+            type VARCHAR(30),
+            status VARCHAR(20) DEFAULT 'COMPLETED',
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS cheques (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             issuer_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
             receiver_name TEXT,
-            amount REAL,
-            status TEXT DEFAULT 'PENDING',
-            issued_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
+            amount NUMERIC,
+            status VARCHAR(20) DEFAULT 'PENDING',
+            issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
     ''')
     conn.commit()
     conn.close()
@@ -108,7 +127,7 @@ def get_user(user_id):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, name, balance, savings_balance FROM users WHERE id=?",
+        "SELECT id, name, balance, savings_balance FROM users WHERE id=%s",
         (user_id,)
     )
     row = cursor.fetchone()
@@ -136,7 +155,7 @@ def login():
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name FROM users WHERE name=? AND password=?",
+            "SELECT id, name FROM users WHERE name=%s AND password=%s",
             (name, pw)
         )
         row = cursor.fetchone()
@@ -158,7 +177,7 @@ def register():
             conn = get_db()
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO users (name, password, savings_balance) VALUES (?,?,0)",
+                "INSERT INTO users (name, password, savings_balance) VALUES (%s,%s,0)",
                 (name, pw)
             )
             conn.commit()
@@ -187,15 +206,15 @@ def dashboard():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT type, amount, timestamp FROM transactions WHERE user_id=? ORDER BY timestamp DESC LIMIT 6",
+        "SELECT type, amount, timestamp FROM transactions WHERE user_id=%s ORDER BY timestamp DESC LIMIT 6",
         (user['id'],)
     )
     recent = cursor.fetchall()
-    cursor.execute("SELECT COUNT(*) FROM loans WHERE user_id=? AND status='ACTIVE'", (user['id'],))
+    cursor.execute("SELECT COUNT(*) FROM loans WHERE user_id=%s AND status='ACTIVE'", (user['id'],))
     active_loans = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM bills WHERE user_id=? AND status='PENDING'", (user['id'],))
+    cursor.execute("SELECT COUNT(*) FROM bills WHERE user_id=%s AND status='PENDING'", (user['id'],))
     pending_bills = cursor.fetchone()[0]
-    cursor.execute("SELECT COALESCE(SUM(amount),0) FROM investments WHERE user_id=?", (user['id'],))
+    cursor.execute("SELECT COALESCE(SUM(amount),0) FROM investments WHERE user_id=%s", (user['id'],))
     total_invested = float(cursor.fetchone()[0])
     conn.close()
     return render_template(
@@ -224,9 +243,9 @@ def deposit():
             else:
                 conn = get_db()
                 cursor = conn.cursor()
-                cursor.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, user['id']))
+                cursor.execute("UPDATE users SET balance=balance+%s WHERE id=%s", (amount, user['id']))
                 cursor.execute(
-                    "INSERT INTO transactions (user_id, type, amount) VALUES (?,'DEPOSIT',?)",
+                    "INSERT INTO transactions (user_id, type, amount) VALUES (%s,'DEPOSIT',%s)",
                     (user['id'], amount)
                 )
                 conn.commit()
@@ -254,9 +273,9 @@ def withdraw():
             else:
                 conn = get_db()
                 cursor = conn.cursor()
-                cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, user['id']))
+                cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (amount, user['id']))
                 cursor.execute(
-                    "INSERT INTO transactions (user_id, type, amount) VALUES (?,'WITHDRAWAL',?)",
+                    "INSERT INTO transactions (user_id, type, amount) VALUES (%s,'WITHDRAWAL',%s)",
                     (user['id'], amount)
                 )
                 conn.commit()
@@ -279,7 +298,7 @@ def transactions():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT type, amount, timestamp FROM transactions WHERE user_id=? ORDER BY timestamp DESC",
+        "SELECT type, amount, timestamp FROM transactions WHERE user_id=%s ORDER BY timestamp DESC",
         (user['id'],)
     )
     history = cursor.fetchall()
@@ -307,13 +326,13 @@ def loans():
                     total = round(principal * 1.05, 2)
                     conn = get_db()
                     cursor = conn.cursor()
-                    cursor.execute("UPDATE users SET balance=balance+? WHERE id=?", (principal, user['id']))
+                    cursor.execute("UPDATE users SET balance=balance+%s WHERE id=%s", (principal, user['id']))
                     cursor.execute(
-                        "INSERT INTO loans (user_id, principal, total_owed) VALUES (?,?,?)",
+                        "INSERT INTO loans (user_id, principal, total_owed) VALUES (%s,%s,%s)",
                         (user['id'], principal, total)
                     )
                     cursor.execute(
-                        "INSERT INTO transactions (user_id, type, amount) VALUES (?,'LOAN_DISBURSEMENT',?)",
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (%s,'LOAN_DISBURSEMENT',%s)",
                         (user['id'], principal)
                     )
                     conn.commit()
@@ -326,7 +345,7 @@ def loans():
                 conn = get_db()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT total_owed, amount_paid FROM loans WHERE id=? AND user_id=? AND status='ACTIVE'",
+                    "SELECT total_owed, amount_paid FROM loans WHERE id=%s AND user_id=%s AND status='ACTIVE'",
                     (loan_id, user['id'])
                 )
                 loan = cursor.fetchone()
@@ -339,13 +358,13 @@ def loans():
                     pay = min(amount, owed - paid)
                     new_paid = paid + pay
                     status = 'CLEARED' if new_paid >= owed else 'ACTIVE'
-                    cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (pay, user['id']))
+                    cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (pay, user['id']))
                     cursor.execute(
-                        "UPDATE loans SET amount_paid=?, status=? WHERE id=?",
+                        "UPDATE loans SET amount_paid=%s, status=%s WHERE id=%s",
                         (new_paid, status, loan_id)
                     )
                     cursor.execute(
-                        "INSERT INTO transactions (user_id, type, amount) VALUES (?,'LOAN_REPAYMENT',?)",
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (%s,'LOAN_REPAYMENT',%s)",
                         (user['id'], pay)
                     )
                     conn.commit()
@@ -362,7 +381,7 @@ def loans():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, principal, total_owed, amount_paid, status, timestamp FROM loans WHERE user_id=? ORDER BY timestamp DESC",
+        "SELECT id, principal, total_owed, amount_paid, status, timestamp FROM loans WHERE user_id=%s ORDER BY timestamp DESC",
         (user['id'],)
     )
     all_loans = cursor.fetchall()
@@ -389,7 +408,7 @@ def bills():
                 conn = get_db()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "INSERT INTO bills (user_id, bill_type, amount, due_date) VALUES (?,?,?,date('now','+7 days'))",
+                    "INSERT INTO bills (user_id, bill_type, amount, due_date) VALUES (%s,%s,%s, CURRENT_DATE + INTERVAL '7 days')",
                     (user['id'], bill_type, amount)
                 )
                 conn.commit()
@@ -401,7 +420,7 @@ def bills():
                 conn = get_db()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT amount FROM bills WHERE id=? AND user_id=? AND status='PENDING'",
+                    "SELECT amount FROM bills WHERE id=%s AND user_id=%s AND status='PENDING'",
                     (bill_id, user['id'])
                 )
                 row = cursor.fetchone()
@@ -411,10 +430,10 @@ def bills():
                     flash('Insufficient balance.', 'error')
                 else:
                     amt = float(row[0])
-                    cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amt, user['id']))
-                    cursor.execute("UPDATE bills SET status='PAID' WHERE id=?", (bill_id,))
+                    cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (amt, user['id']))
+                    cursor.execute("UPDATE bills SET status='PAID' WHERE id=%s", (bill_id,))
                     cursor.execute(
-                        "INSERT INTO transactions (user_id, type, amount) VALUES (?,'BILL_PAYMENT',?)",
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (%s,'BILL_PAYMENT',%s)",
                         (user['id'], amt)
                     )
                     conn.commit()
@@ -428,7 +447,7 @@ def bills():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, bill_type, amount, due_date, status FROM bills WHERE user_id=? ORDER BY status, due_date",
+        "SELECT id, bill_type, amount, due_date, status FROM bills WHERE user_id=%s ORDER BY status, due_date",
         (user['id'],)
     )
     all_bills = cursor.fetchall()
@@ -459,11 +478,11 @@ def transfers():
                         conn = get_db()
                         cursor = conn.cursor()
                         cursor.execute(
-                            "UPDATE users SET balance=balance-?, savings_balance=savings_balance+? WHERE id=?",
+                            "UPDATE users SET balance=balance-%s, savings_balance=savings_balance+%s WHERE id=%s",
                             (amount, amount, user['id'])
                         )
                         cursor.execute(
-                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,'SELF-SAVINGS',?,'SELF')",
+                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,'SELF-SAVINGS',%s,'SELF')",
                             (user['id'], amount)
                         )
                         conn.commit()
@@ -476,11 +495,11 @@ def transfers():
                         conn = get_db()
                         cursor = conn.cursor()
                         cursor.execute(
-                            "UPDATE users SET balance=balance+?, savings_balance=savings_balance-? WHERE id=?",
+                            "UPDATE users SET balance=balance+%s, savings_balance=savings_balance-%s WHERE id=%s",
                             (amount, amount, user['id'])
                         )
                         cursor.execute(
-                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,'SELF-WALLET',?,'SELF')",
+                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,'SELF-WALLET',%s,'SELF')",
                             (user['id'], amount)
                         )
                         conn.commit()
@@ -497,19 +516,19 @@ def transfers():
                 else:
                     conn = get_db()
                     cursor = conn.cursor()
-                    cursor.execute("SELECT id FROM users WHERE name=?", (recipient,))
+                    cursor.execute("SELECT id FROM users WHERE name=%s", (recipient,))
                     rec = cursor.fetchone()
                     if not rec:
                         flash('User not found.', 'error')
                     else:
-                        cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, user['id']))
-                        cursor.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, rec[0]))
+                        cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (amount, user['id']))
+                        cursor.execute("UPDATE users SET balance=balance+%s WHERE id=%s", (amount, rec[0]))
                         cursor.execute(
-                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,?,?,'BANK')",
+                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,'BANK')",
                             (user['id'], recipient, amount)
                         )
                         cursor.execute(
-                            "INSERT INTO transactions (user_id, type, amount) VALUES (?,'TRANSFER_OUT',?)",
+                            "INSERT INTO transactions (user_id, type, amount) VALUES (%s,'TRANSFER_OUT',%s)",
                             (user['id'], amount)
                         )
                         conn.commit()
@@ -524,13 +543,13 @@ def transfers():
                 else:
                     conn = get_db()
                     cursor = conn.cursor()
-                    cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, user['id']))
+                    cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (amount, user['id']))
                     cursor.execute(
-                        "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,?,?,'UPI')",
+                        "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,'UPI')",
                         (user['id'], upi_id, amount)
                     )
                     cursor.execute(
-                        "INSERT INTO transactions (user_id, type, amount) VALUES (?,'UPI_TRANSFER',?)",
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (%s,'UPI_TRANSFER',%s)",
                         (user['id'], amount)
                     )
                     conn.commit()
@@ -550,13 +569,13 @@ def transfers():
                     else:
                         conn = get_db()
                         cursor = conn.cursor()
-                        cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (inr, user['id']))
+                        cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (inr, user['id']))
                         cursor.execute(
-                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,?,?,'INTERNATIONAL')",
+                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,'INTERNATIONAL')",
                             (user['id'], currency, inr)
                         )
                         cursor.execute(
-                            "INSERT INTO transactions (user_id, type, amount) VALUES (?,'INTL_TRANSFER',?)",
+                            "INSERT INTO transactions (user_id, type, amount) VALUES (%s,'INTL_TRANSFER',%s)",
                             (user['id'], inr)
                         )
                         conn.commit()
@@ -573,19 +592,19 @@ def transfers():
                 else:
                     conn = get_db()
                     cursor = conn.cursor()
-                    cursor.execute("SELECT id FROM users WHERE name=?", (recipient,))
+                    cursor.execute("SELECT id FROM users WHERE name=%s", (recipient,))
                     rec = cursor.fetchone()
                     if not rec:
                         flash('User not found.', 'error')
                     else:
-                        cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (total, user['id']))
-                        cursor.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, rec[0]))
+                        cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (total, user['id']))
+                        cursor.execute("UPDATE users SET balance=balance+%s WHERE id=%s", (amount, rec[0]))
                         cursor.execute(
-                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (?,?,?,'NEFT')",
+                            "INSERT INTO transfers (sender_id, receiver_info, amount, type) VALUES (%s,%s,%s,'NEFT')",
                             (user['id'], recipient, amount)
                         )
                         cursor.execute(
-                            "INSERT INTO transactions (user_id, type, amount) VALUES (?,'NEFT_TRANSFER',?)",
+                            "INSERT INTO transactions (user_id, type, amount) VALUES (%s,'NEFT_TRANSFER',%s)",
                             (user['id'], total)
                         )
                         conn.commit()
@@ -601,7 +620,7 @@ def transfers():
                     conn = get_db()
                     cursor = conn.cursor()
                     cursor.execute(
-                        "INSERT INTO cheques (issuer_id, receiver_name, amount) VALUES (?,?,?)",
+                        "INSERT INTO cheques (issuer_id, receiver_name, amount) VALUES (%s,%s,%s)",
                         (user['id'], receiver, amount)
                     )
                     conn.commit()
@@ -613,7 +632,7 @@ def transfers():
                 conn = get_db()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT issuer_id, amount FROM cheques WHERE id=? AND receiver_name=? AND status='PENDING'",
+                    "SELECT issuer_id, amount FROM cheques WHERE id=%s AND receiver_name=%s AND status='PENDING'",
                     (cheque_id, user['name'])
                 )
                 row = cursor.fetchone()
@@ -621,16 +640,16 @@ def transfers():
                     flash('Invalid cheque.', 'error')
                 else:
                     issuer_id, amt = row[0], float(row[1])
-                    cursor.execute("SELECT balance FROM users WHERE id=?", (issuer_id,))
+                    cursor.execute("SELECT balance FROM users WHERE id=%s", (issuer_id,))
                     issuer_bal = float(cursor.fetchone()[0])
                     if issuer_bal < amt:
                         flash('Issuer has insufficient funds.', 'error')
                     else:
-                        cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amt, issuer_id))
-                        cursor.execute("UPDATE users SET balance=balance+? WHERE id=?", (amt, user['id']))
-                        cursor.execute("UPDATE cheques SET status='CLEARED' WHERE id=?", (cheque_id,))
+                        cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (amt, issuer_id))
+                        cursor.execute("UPDATE users SET balance=balance+%s WHERE id=%s", (amt, user['id']))
+                        cursor.execute("UPDATE cheques SET status='CLEARED' WHERE id=%s", (cheque_id,))
                         cursor.execute(
-                            "INSERT INTO transactions (user_id, type, amount) VALUES (?,'CHEQUE_RECEIVED',?)",
+                            "INSERT INTO transactions (user_id, type, amount) VALUES (%s,'CHEQUE_RECEIVED',%s)",
                             (user['id'], amt)
                         )
                         conn.commit()
@@ -644,12 +663,12 @@ def transfers():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT receiver_info, amount, type, timestamp FROM transfers WHERE sender_id=? ORDER BY timestamp DESC LIMIT 10",
+        "SELECT receiver_info, amount, type, timestamp FROM transfers WHERE sender_id=%s ORDER BY timestamp DESC LIMIT 10",
         (user['id'],)
     )
     recent_transfers = cursor.fetchall()
     cursor.execute(
-        "SELECT id, issuer_id, amount, issued_at FROM cheques WHERE receiver_name=? AND status='PENDING'",
+        "SELECT id, issuer_id, amount, issued_at FROM cheques WHERE receiver_name=%s AND status='PENDING'",
         (user['name'],)
     )
     pending_cheques = cursor.fetchall()
@@ -676,7 +695,7 @@ def pfm():
                 name = request.form['goal_name'].strip()
                 target = float(request.form['target_amount'])
                 cursor.execute(
-                    "INSERT INTO goals (user_id, goal_name, target_amount) VALUES (?,?,?)",
+                    "INSERT INTO goals (user_id, goal_name, target_amount) VALUES (%s,%s,%s)",
                     (user['id'], name, target)
                 )
                 conn.commit()
@@ -688,13 +707,13 @@ def pfm():
                 if amount <= 0 or amount > user['balance']:
                     flash('Invalid amount.', 'error')
                 else:
-                    cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, user['id']))
+                    cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (amount, user['id']))
                     cursor.execute(
-                        "UPDATE goals SET saved_amount=saved_amount+? WHERE id=? AND user_id=?",
+                        "UPDATE goals SET saved_amount=saved_amount+%s WHERE id=%s AND user_id=%s",
                         (amount, goal_id, user['id'])
                     )
                     cursor.execute(
-                        "INSERT INTO transactions (user_id, type, amount) VALUES (?,'GOAL_CONTRIBUTION',?)",
+                        "INSERT INTO transactions (user_id, type, amount) VALUES (%s,'GOAL_CONTRIBUTION',%s)",
                         (user['id'], amount)
                     )
                     conn.commit()
@@ -704,7 +723,7 @@ def pfm():
                 category = request.form['category'].strip()
                 limit = float(request.form['limit_amount'])
                 cursor.execute(
-                    "INSERT INTO budgets (user_id, category, monthly_limit) VALUES (?,?,?)",
+                    "INSERT INTO budgets (user_id, category, monthly_limit) VALUES (%s,%s,%s)",
                     (user['id'], category, limit)
                 )
                 conn.commit()
@@ -718,12 +737,12 @@ def pfm():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, goal_name, target_amount, saved_amount FROM goals WHERE user_id=? AND status='ACTIVE'",
+        "SELECT id, goal_name, target_amount, saved_amount FROM goals WHERE user_id=%s AND status='ACTIVE'",
         (user['id'],)
     )
     goals = cursor.fetchall()
     cursor.execute(
-        "SELECT id, category, monthly_limit, spent FROM budgets WHERE user_id=?",
+        "SELECT id, category, monthly_limit, spent FROM budgets WHERE user_id=%s",
         (user['id'],)
     )
     budgets = cursor.fetchall()
@@ -748,7 +767,7 @@ def cards():
             if action == 'add':
                 num = str(random.randint(1000000000000000, 9999999999999999))
                 cursor.execute(
-                    "INSERT INTO cards (user_id, card_number, expiry_date) VALUES (?,?,'2030-12-31')",
+                    "INSERT INTO cards (user_id, card_number, expiry_date) VALUES (%s,%s,'2030-12-31')",
                     (user['id'], num)
                 )
                 conn.commit()
@@ -756,7 +775,7 @@ def cards():
 
             elif action == 'block':
                 cursor.execute(
-                    "UPDATE cards SET status='BLOCKED' WHERE id=? AND user_id=?",
+                    "UPDATE cards SET status='BLOCKED' WHERE id=%s AND user_id=%s",
                     (int(request.form['card_id']), user['id'])
                 )
                 conn.commit()
@@ -764,7 +783,7 @@ def cards():
 
             elif action == 'unblock':
                 cursor.execute(
-                    "UPDATE cards SET status='ACTIVE' WHERE id=? AND user_id=?",
+                    "UPDATE cards SET status='ACTIVE' WHERE id=%s AND user_id=%s",
                     (int(request.form['card_id']), user['id'])
                 )
                 conn.commit()
@@ -772,7 +791,7 @@ def cards():
 
             elif action == 'renew':
                 cursor.execute(
-                    "UPDATE cards SET expiry_date='2035-12-31', status='ACTIVE' WHERE id=? AND user_id=?",
+                    "UPDATE cards SET expiry_date='2035-12-31', status='ACTIVE' WHERE id=%s AND user_id=%s",
                     (int(request.form['card_id']), user['id'])
                 )
                 conn.commit()
@@ -786,7 +805,7 @@ def cards():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, card_number, status, expiry_date FROM cards WHERE user_id=? ORDER BY created_at DESC",
+        "SELECT id, card_number, status, expiry_date FROM cards WHERE user_id=%s ORDER BY created_at DESC",
         (user['id'],)
     )
     all_cards = cursor.fetchall()
@@ -816,9 +835,9 @@ def investments():
                     flash('Invalid investment.', 'error')
                 else:
                     returns = round(amount * rates[inv_type], 2)
-                    cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (amount, user['id']))
+                    cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (amount, user['id']))
                     cursor.execute(
-                        "INSERT INTO investments (user_id, type, amount, returns) VALUES (?,?,?,?)",
+                        "INSERT INTO investments (user_id, type, amount, returns) VALUES (%s,%s,%s,%s)",
                         (user['id'], inv_type, amount, returns)
                     )
                     conn.commit()
@@ -837,9 +856,9 @@ def investments():
                     else:
                         predicted = round(prices[stock] * random.uniform(0.8, 1.5) * qty, 2)
                         returns = round(predicted - total, 2)
-                        cursor.execute("UPDATE users SET balance=balance-? WHERE id=?", (total, user['id']))
+                        cursor.execute("UPDATE users SET balance=balance-%s WHERE id=%s", (total, user['id']))
                         cursor.execute(
-                            "INSERT INTO investments (user_id, type, amount, returns) VALUES (?,?,?,?)",
+                            "INSERT INTO investments (user_id, type, amount, returns) VALUES (%s,%s,%s,%s)",
                             (user['id'], stock, total, returns)
                         )
                         conn.commit()
@@ -853,7 +872,7 @@ def investments():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT type, amount, returns, timestamp FROM investments WHERE user_id=? ORDER BY timestamp DESC",
+        "SELECT type, amount, returns, timestamp FROM investments WHERE user_id=%s ORDER BY timestamp DESC",
         (user['id'],)
     )
     all_investments = cursor.fetchall()

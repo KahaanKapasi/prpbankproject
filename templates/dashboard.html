@@ -60,7 +60,7 @@
           <tr>
             <td><span class="badge {% if 'DEPOSIT' in txn[0] or 'RECEIVED' in txn[0] or 'DISBURSEMENT' in txn[0] %}badge-green{% elif 'WITHDRAW' in txn[0] or 'OUT' in txn[0] or 'PAYMENT' in txn[0] or 'TRANSFER' in txn[0] %}badge-red{% else %}badge-blue{% endif %}">{{ txn[0].replace('_', ' ') }}</span></td>
             <td class="amount">₹{{ "%.2f"|format(txn[1]) }}</td>
-            <td>{{ txn[2][:16] }}</td>
+            <td>{{ txn[2].strftime('%d %b, %H:%M') }}</td>
           </tr>
           {% endfor %}
         </tbody>
