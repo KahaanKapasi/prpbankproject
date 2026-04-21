@@ -880,6 +880,7 @@ def investments():
     return render_template('investments.html', user=user, investments=all_investments)
 
 
+db_init()
+
 if __name__ == '__main__':
-    db_init()
     app.run(debug=True)
