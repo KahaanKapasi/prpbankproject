@@ -83,9 +83,6 @@ def get_db():
         conn.close()
 
 
-db_init()
-
-
 # ── User helpers ──────────────────────────────────────────────────────────────
 
 def get_user(user_id):
