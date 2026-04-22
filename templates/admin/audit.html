@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %} — Audit Log{% endblock %}
+{% block page_title %}<h1>Audit Log</h1>{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">All Admin Actions</div>
+  {% if entries %}
+    <table class="table">
+      <thead><tr><th>Admin</th><th>Action</th><th>Target</th><th>Before</th><th>After</th><th>Time</th></tr></thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td>{{ e['username'] or '#' + (e['admin_id']|string) }}</td>
+          <td><span class="badge badge-blue">{{ e['action'] }}</span></td>
+          <td class="text-muted">{{ e['target_type'] or '—' }} {% if e['target_id'] %}#{{ e['target_id'] }}{% endif %}</td>
+          <td class="text-muted" style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">{{ e['before_json'] or '—' }}</td>
+          <td class="text-muted" style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">{{ e['after_json'] or '—' }}</td>
+          <td class="text-muted">{{ e['timestamp'].strftime('%d %b %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pagination mt-16">
+      {% if page > 1 %}<a href="{{ url_for('admin_audit', page=page-1) }}" class="btn btn-ghost btn-sm">← Prev</a>{% endif %}
+      <span class="text-muted" style="padding:0 12px">Page {{ page }} of {{ total_pages }}</span>
+      {% if page < total_pages %}<a href="{{ url_for('admin_audit', page=page+1) }}" class="btn btn-ghost btn-sm">Next →</a>{% endif %}
+    </div>
+  {% else %}
+    <p class="empty-text">No audit entries yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

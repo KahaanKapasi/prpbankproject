@@ -10,6 +10,8 @@
       <thead>
         <tr>
           <th>Type</th>
+          <th>Description</th>
+          <th>Reference</th>
           <th>Amount</th>
           <th>Date &amp; Time</th>
         </tr>
@@ -19,20 +21,31 @@
         <tr>
           <td>
             <span class="badge
-              {% if txn[0] in ['DEPOSIT','LOAN_DISBURSEMENT','CHEQUE_RECEIVED'] %}badge-green
-              {% elif txn[0] in ['WITHDRAWAL','BILL_PAYMENT','TRANSFER_OUT','UPI_TRANSFER','NEFT_TRANSFER','INTL_TRANSFER'] %}badge-red
+              {% if txn['type'] in ['DEPOSIT','LOAN_DISBURSEMENT','CHEQUE_RECEIVED','TRANSFER_IN','ADMIN_CREDIT','TRANSFER_REFUND'] %}badge-green
+              {% elif txn['type'] in ['WITHDRAWAL','BILL_PAYMENT','TRANSFER_OUT','UPI_TRANSFER','NEFT_TRANSFER','INTL_TRANSFER','LOAN_REPAYMENT','INVESTMENT_PURCHASE','STOCK_PURCHASE'] %}badge-red
               {% else %}badge-blue{% endif %}">
-              {{ txn[0].replace('_', ' ') }}
+              {{ txn['type'].replace('_', ' ') }}
             </span>
           </td>
-          <td class="amount">₹{{ "%.2f"|format(txn[1]) }}</td>
-          <td class="text-muted">{{ txn[2][:16] }}</td>
+          <td class="text-muted">{{ txn['description'] or '—' }}</td>
+          <td class="text-muted" style="font-size:11px;font-family:monospace">{{ txn['reference_id'] or '—' }}</td>
+          <td class="amount">₹{{ "%.2f"|format(txn['amount']) }}</td>
+          <td class="text-muted">{{ txn['timestamp'].strftime('%d %b %Y, %H:%M') }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    <div class="pagination mt-16">
+      {% if page > 1 %}
+        <a href="{{ url_for('transactions', page=page-1) }}" class="btn btn-ghost btn-sm">← Prev</a>
+      {% endif %}
+      <span class="text-muted" style="padding:0 12px">Page {{ page }} of {{ total_pages }}</span>
+      {% if page < total_pages %}
+        <a href="{{ url_for('transactions', page=page+1) }}" class="btn btn-ghost btn-sm">Next →</a>
+      {% endif %}
+    </div>
   {% else %}
-    <p class="empty-text">No transactions found.</p>
+    <p class="empty-text">No transactions yet.</p>
   {% endif %}
 </div>
 {% endblock %}

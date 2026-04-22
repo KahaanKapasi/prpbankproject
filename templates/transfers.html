@@ -3,25 +3,21 @@
 {% block page_title %}<h1>Transfers</h1>{% endblock %}
 
 {% block content %}
-
 {% if pending_cheques %}
-<div class="alert alert-info">
-  You have {{ pending_cheques|length }} pending cheque(s) to approve.
-</div>
+<div class="alert alert-info">You have {{ pending_cheques|length }} pending cheque(s) to approve.</div>
 {% endif %}
 
 <div class="tabs" id="tabBar">
-  <button class="tab active" onclick="showTab('self')">Self</button>
-  <button class="tab" onclick="showTab('bank')">Bank</button>
-  <button class="tab" onclick="showTab('upi')">UPI</button>
-  <button class="tab" onclick="showTab('intl')">International</button>
-  <button class="tab" onclick="showTab('neft')">NEFT</button>
-  <button class="tab" onclick="showTab('cheque')">Cheque</button>
+  <button class="tab active" onclick="showTab('self',this)">Self</button>
+  <button class="tab" onclick="showTab('bank',this)">Bank</button>
+  <button class="tab" onclick="showTab('upi',this)">UPI</button>
+  <button class="tab" onclick="showTab('intl',this)">International</button>
+  <button class="tab" onclick="showTab('neft',this)">NEFT</button>
+  <button class="tab" onclick="showTab('cheque',this)">Cheque</button>
 </div>
 
 <div class="grid grid-2">
   <div>
-    <!-- Self -->
     <div id="tab-self" class="tab-content active card">
       <div class="card-title">Self Transfer</div>
       <div class="balance-row mb-16">
@@ -29,6 +25,7 @@
         <span>Savings: <strong>₹{{ "%.2f"|format(user.savings) }}</strong></span>
       </div>
       <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="transfer_type" value="self">
         <div class="form-group">
           <label>Direction</label>
@@ -45,71 +42,75 @@
       </form>
     </div>
 
-    <!-- Bank -->
     <div id="tab-bank" class="tab-content card">
-      <div class="card-title">Other Bank Transfer</div>
+      <div class="card-title">Bank Transfer</div>
       <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="transfer_type" value="bank">
         <div class="form-group">
-          <label>Recipient Username</label>
-          <input type="text" name="recipient" placeholder="Enter username" required>
+          <label>Recipient (username or account number)</label>
+          <input type="text" name="recipient" id="bank-recipient" placeholder="Enter username or account number" required autocomplete="off">
+          <div id="recipient-verify" class="text-muted" style="font-size:12px;margin-top:4px"></div>
         </div>
         <div class="form-group">
           <label>Amount (₹)</label>
           <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
         </div>
+        <div class="info-box">Transfers above ₹5,00,000 require admin approval.</div>
         <button type="submit" class="btn btn-primary btn-block">Send</button>
       </form>
     </div>
 
-    <!-- UPI -->
     <div id="tab-upi" class="tab-content card">
       <div class="card-title">UPI Transfer</div>
       <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="transfer_type" value="upi">
         <div class="form-group">
           <label>UPI ID</label>
-          <input type="text" name="upi_id" placeholder="e.g. name@okbank" required>
+          <input type="text" name="upi_id" placeholder="name@okbank" required>
         </div>
         <div class="form-group">
           <label>Amount (₹)</label>
           <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Pay</button>
+        <button type="submit" class="btn btn-primary btn-block">Pay via UPI</button>
       </form>
     </div>
 
-    <!-- International -->
     <div id="tab-intl" class="tab-content card">
-      <div class="card-title">International Transaction</div>
-      <div class="info-box mb-16">USD ₹83 · EUR ₹90 · GBP ₹105</div>
+      <div class="card-title">International Transfer</div>
+      <div class="info-box mb-16">
+        Live rates:
+        {% for cur, rate in fx_rates.items() %}{{ cur }}/INR ₹{{ rate }}{% if not loop.last %} · {% endif %}{% endfor %}
+        · Flat fee + 1% spread applies.
+      </div>
       <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="transfer_type" value="international">
         <div class="form-group">
           <label>Currency</label>
           <select name="currency">
-            <option value="USD">USD — US Dollar</option>
-            <option value="EUR">EUR — Euro</option>
-            <option value="GBP">GBP — British Pound</option>
+            {% for cur in fx_rates %}<option value="{{ cur }}">{{ cur }}</option>{% endfor %}
           </select>
         </div>
         <div class="form-group">
           <label>Amount (foreign currency)</label>
           <input type="number" name="foreign_amount" step="0.01" min="0.01" placeholder="0.00" required>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Send</button>
+        <button type="submit" class="btn btn-primary btn-block">Send International</button>
       </form>
     </div>
 
-    <!-- NEFT -->
     <div id="tab-neft" class="tab-content card">
       <div class="card-title">NEFT Transfer</div>
-      <div class="info-box mb-16">₹5 processing fee applies</div>
+      <div class="info-box mb-16">₹5 processing fee applies.</div>
       <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="transfer_type" value="neft">
         <div class="form-group">
-          <label>Recipient Username</label>
-          <input type="text" name="recipient" placeholder="Enter username" required>
+          <label>Recipient (username or account number)</label>
+          <input type="text" name="recipient" placeholder="Enter username or account number" required>
         </div>
         <div class="form-group">
           <label>Amount (₹)</label>
@@ -119,15 +120,14 @@
       </form>
     </div>
 
-    <!-- Cheque -->
     <div id="tab-cheque" class="tab-content card">
-      <div class="card-title">Cheque</div>
-      <p class="text-muted mb-16" style="font-size:13px">Issue a cheque, or approve cheques addressed to you.</p>
-
+      <div class="card-title">Issue a Cheque</div>
+      <p class="text-muted mb-16" style="font-size:13px">Funds are held immediately and released when the payee approves.</p>
       <form method="POST" class="mb-16">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="transfer_type" value="issue_cheque">
         <div class="form-group">
-          <label>Payee Name</label>
+          <label>Payee Username</label>
           <input type="text" name="receiver" placeholder="Recipient username" required>
         </div>
         <div class="form-group">
@@ -141,12 +141,13 @@
       <hr class="divider">
       <div class="card-title">Pending Cheques for You</div>
       <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="transfer_type" value="approve_cheque">
         <div class="form-group">
           <label>Select Cheque</label>
           <select name="cheque_id" required>
             {% for ch in pending_cheques %}
-              <option value="{{ ch[0] }}">Cheque #{{ ch[0] }} — ₹{{ "%.2f"|format(ch[2]) }}</option>
+              <option value="{{ ch['id'] }}">{{ ch['cheque_number'] }} — ₹{{ "%.2f"|format(ch['amount']) }}</option>
             {% endfor %}
           </select>
         </div>
@@ -160,16 +161,15 @@
     <div class="card-title">Recent Transfers</div>
     {% if recent_transfers %}
       <table class="table">
-        <thead>
-          <tr><th>To</th><th>Amount</th><th>Type</th><th>Date</th></tr>
-        </thead>
+        <thead><tr><th>To</th><th>Amount</th><th>Type</th><th>Ref</th><th>Date</th></tr></thead>
         <tbody>
           {% for t in recent_transfers %}
           <tr>
-            <td>{{ t[0] }}</td>
-            <td class="amount">₹{{ "%.2f"|format(t[1]) }}</td>
-            <td><span class="badge badge-blue">{{ t[2] }}</span></td>
-            <td class="text-muted">{{ t[3][:10] }}</td>
+            <td>{{ t['receiver_info'] }}</td>
+            <td class="amount">₹{{ "%.2f"|format(t['amount']) }}</td>
+            <td><span class="badge badge-blue">{{ t['type'] }}</span></td>
+            <td class="text-muted" style="font-size:11px;font-family:monospace">{{ t['reference_id'] or '—' }}</td>
+            <td class="text-muted">{{ t['timestamp'].strftime('%d %b') }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -181,11 +181,27 @@
 </div>
 
 <script>
-function showTab(name) {
+function showTab(name, btn) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  event.target.classList.add('active');
+  btn.classList.add('active');
 }
+// Recipient name verification
+var verifyTimer;
+document.getElementById('bank-recipient').addEventListener('input', function() {
+  clearTimeout(verifyTimer);
+  var q = this.value.trim();
+  var el = document.getElementById('recipient-verify');
+  if (q.length < 2) { el.textContent = ''; return; }
+  verifyTimer = setTimeout(function() {
+    fetch('/api/lookup_user?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(data => {
+        if (data) el.textContent = 'Sending to: ' + data.full_name + ' (A/C ending ' + data.account + ')';
+        else el.textContent = 'User not found.';
+      });
+  }, 400);
+});
 </script>
 {% endblock %}

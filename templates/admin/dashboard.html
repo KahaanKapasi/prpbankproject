@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %} — Admin{% endblock %}
+{% block page_title %}<h1>Admin Dashboard</h1>{% endblock %}
+
+{% block content %}
+<div class="grid grid-4 mb-24">
+  <div class="stat-card">
+    <div class="stat-label">Total Users</div>
+    <div class="stat-value">{{ total_users }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active Users</div>
+    <div class="stat-value green">{{ active_users }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Frozen Users</div>
+    <div class="stat-value {% if frozen_users > 0 %}red{% endif %}">{{ frozen_users }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Pending Approvals</div>
+    <div class="stat-value {% if pending_approvals > 0 %}warn{% endif %}">{{ pending_approvals }}</div>
+  </div>
+</div>
+
+<div class="grid grid-2 mb-24">
+  <div class="stat-card">
+    <div class="stat-label">Deposits Today</div>
+    <div class="stat-value green">₹{{ "%.2f"|format(deposits_today) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Loans Outstanding</div>
+    <div class="stat-value">₹{{ "%.2f"|format(loans_outstanding) }}</div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-title">Quick Actions</div>
+    <div class="quick-links" style="flex-direction:column;gap:8px">
+      <a href="{{ url_for('admin_queue') }}" class="btn btn-primary btn-sm">Review Approval Queue ({{ pending_approvals }})</a>
+      <a href="{{ url_for('admin_users') }}" class="btn btn-ghost btn-sm">Manage Users</a>
+      <a href="{{ url_for('admin_stocks') }}" class="btn btn-ghost btn-sm">Simulate Stock Tick</a>
+      <a href="{{ url_for('admin_seed_page') }}" class="btn btn-ghost btn-sm">Reseed Demo Data</a>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Recent Admin Actions</div>
+    {% if recent_audit %}
+      <table class="table">
+        <thead><tr><th>Admin</th><th>Action</th><th>Target</th><th>Time</th></tr></thead>
+        <tbody>
+          {% for a in recent_audit %}
+          <tr>
+            <td>{{ a['admin_id'] or '—' }}</td>
+            <td><span class="badge badge-blue">{{ a['action'] }}</span></td>
+            <td class="text-muted">{{ a['target_type'] }} #{{ a['target_id'] or '—' }}</td>
+            <td class="text-muted">{{ a['timestamp'].strftime('%d %b %H:%M') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty-text">No admin actions yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -27,16 +27,36 @@
         {% endif %}
       {% endwith %}
 
-      <form method="POST">
+      <form method="POST" id="login-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
           <label>Username</label>
-          <input type="text" name="name" placeholder="Enter your username" required autofocus>
+          <input type="text" name="name" id="login-name" placeholder="Enter your username" required autofocus>
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" name="password" placeholder="Enter your password" required>
+          <input type="password" name="password" id="login-pw" placeholder="Enter your password" required>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+
+        {% if personas %}
+        <div class="demo-creds-wrap">
+          <button type="button" class="btn btn-ghost btn-sm demo-toggle-btn" onclick="toggleDemoMenu()">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+            Use demo credentials
+          </button>
+          <div class="demo-menu" id="demo-menu" style="display:none">
+            {% for p in personas %}
+            <button type="button" class="demo-persona-btn" onclick="fillCreds('{{ p.username }}', '{{ p.username }}')">
+              <span class="demo-persona-name">{{ p.username }}</span>
+              <span class="demo-persona-hint">{{ p.hint }}</span>
+              {% if p.role == 'ADMIN' %}<span class="badge badge-blue" style="font-size:10px;padding:1px 6px">admin</span>{% endif %}
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top:16px">Sign In</button>
       </form>
 
       <div class="auth-link">
@@ -44,5 +64,18 @@
       </div>
     </div>
   </div>
+
+  <script>
+    function toggleDemoMenu() {
+      var m = document.getElementById('demo-menu');
+      m.style.display = m.style.display === 'none' ? 'block' : 'none';
+    }
+    function fillCreds(username, password) {
+      document.getElementById('login-name').value = username;
+      document.getElementById('login-pw').value = password;
+      document.getElementById('demo-menu').style.display = 'none';
+      document.getElementById('login-form').querySelector('[type=submit]').focus();
+    }
+  </script>
 </body>
 </html>

@@ -7,10 +7,22 @@
   <div class="card">
     <div class="card-title">Add a Bill</div>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="add">
       <div class="form-group">
         <label>Bill Type</label>
-        <input type="text" name="bill_type" placeholder="e.g. Electricity, Mobile, Rent" required>
+        <select name="bill_type" required>
+          <option value="">Select category</option>
+          <option>ELECTRICITY</option>
+          <option>MOBILE</option>
+          <option>INTERNET</option>
+          <option>DTH</option>
+          <option>RENT</option>
+          <option>INSURANCE</option>
+          <option>GAS</option>
+          <option>CREDIT CARD</option>
+          <option>OTHER</option>
+        </select>
       </div>
       <div class="form-group">
         <label>Amount (₹)</label>
@@ -22,16 +34,17 @@
 
   <div class="card">
     <div class="card-title">Pay a Bill</div>
-    {% set pending = bills | selectattr('4', 'equalto', 'PENDING') | list %}
-    {% if pending %}
+    {% set payable = bills | selectattr('status', 'in', ['PENDING','OVERDUE']) | list %}
+    {% if payable %}
       <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="pay">
         <div class="form-group">
           <label>Select Bill</label>
           <select name="bill_id" required>
             {% for bill in bills %}
-              {% if bill[4] == 'PENDING' %}
-                <option value="{{ bill[0] }}">{{ bill[1] }} — ₹{{ "%.2f"|format(bill[2]) }} (due {{ bill[3] }})</option>
+              {% if bill['status'] in ['PENDING','OVERDUE'] %}
+                <option value="{{ bill['id'] }}">{{ bill['bill_type'] }} — ₹{{ "%.2f"|format(bill['amount']) }} (due {{ bill['due_date'] }}){% if bill['status'] == 'OVERDUE' %} ⚠ OVERDUE{% endif %}</option>
               {% endif %}
             {% endfor %}
           </select>
@@ -55,10 +68,10 @@
       <tbody>
         {% for bill in bills %}
         <tr>
-          <td>{{ bill[1] }}</td>
-          <td class="amount">₹{{ "%.2f"|format(bill[2]) }}</td>
-          <td class="text-muted">{{ bill[3] }}</td>
-          <td><span class="badge {% if bill[4] == 'PENDING' %}badge-yellow{% else %}badge-green{% endif %}">{{ bill[4] }}</span></td>
+          <td>{{ bill['bill_type'] }}</td>
+          <td class="amount">₹{{ "%.2f"|format(bill['amount']) }}</td>
+          <td class="text-muted">{{ bill['due_date'] }}</td>
+          <td><span class="badge {% if bill['status'] == 'PENDING' %}badge-yellow{% elif bill['status'] == 'OVERDUE' %}badge-red{% else %}badge-green{% endif %}">{{ bill['status'] }}</span></td>
         </tr>
         {% endfor %}
       </tbody>

@@ -1,8 +1,5 @@
 # PRP Bank — Design Brief
 
-> Hand this brief to Claude Design. It is a self-contained prompt. Do not attach the existing repo. Start from a blank slate.
-
----
 
 ## Role
 

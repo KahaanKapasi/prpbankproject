@@ -7,6 +7,7 @@
   <div class="card">
     <div class="card-title">Set a Goal</div>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="add_goal">
       <div class="form-group">
         <label>Goal Name</label>
@@ -16,6 +17,10 @@
         <label>Target Amount (₹)</label>
         <input type="number" name="target_amount" step="0.01" min="1" placeholder="0.00" required>
       </div>
+      <div class="form-group">
+        <label>Deadline (optional)</label>
+        <input type="date" name="deadline">
+      </div>
       <button type="submit" class="btn btn-primary btn-block">Create Goal</button>
     </form>
   </div>
@@ -23,10 +28,21 @@
   <div class="card">
     <div class="card-title">Set Monthly Budget</div>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="add_budget">
       <div class="form-group">
         <label>Category</label>
-        <input type="text" name="category" placeholder="e.g. Food, Travel, Shopping" required>
+        <select name="category" required>
+          <option value="">Select</option>
+          <option>Food</option>
+          <option>Travel</option>
+          <option>Shopping</option>
+          <option>Entertainment</option>
+          <option>Bills</option>
+          <option>Health</option>
+          <option>Education</option>
+          <option>Other</option>
+        </select>
       </div>
       <div class="form-group">
         <label>Monthly Limit (₹)</label>
@@ -44,17 +60,19 @@
       {% for goal in goals %}
       <div class="goal-item mb-16">
         <div class="flex-between mb-8">
-          <span class="goal-name">{{ goal[1] }}</span>
-          <span class="text-muted" style="font-size:13px">₹{{ "%.0f"|format(goal[3]) }} / ₹{{ "%.0f"|format(goal[2]) }}</span>
+          <span class="goal-name">{{ goal['goal_name'] }}</span>
+          <span class="text-muted" style="font-size:13px">₹{{ "%.0f"|format(goal['saved_amount']) }} / ₹{{ "%.0f"|format(goal['target_amount']) }}</span>
         </div>
         <div class="progress-bar">
-          <div class="progress-fill" style="width: {{ [[(goal[3]/goal[2]*100) if goal[2] > 0 else 0, 0]|max, 100]|min }}%"></div>
+          {% set pct = (goal['saved_amount']/goal['target_amount']*100) if goal['target_amount'] > 0 else 0 %}
+          <div class="progress-fill" style="width:{{ [pct,100]|min }}%"></div>
         </div>
         <div class="flex-between mt-8">
-          <span class="text-muted" style="font-size:12px">{{ "%.1f"|format((goal[3]/goal[2]*100) if goal[2] > 0 else 0) }}% complete</span>
+          <span class="text-muted" style="font-size:12px">{{ "%.1f"|format(pct) }}% complete{% if goal['deadline'] %} · due {{ goal['deadline'] }}{% endif %}</span>
           <form method="POST" style="display:flex;gap:8px;align-items:center">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="contribute">
-            <input type="hidden" name="goal_id" value="{{ goal[0] }}">
+            <input type="hidden" name="goal_id" value="{{ goal['id'] }}">
             <input type="number" name="amount" step="0.01" min="1" placeholder="₹" style="width:90px;padding:6px 10px;font-size:13px">
             <button type="submit" class="btn btn-primary btn-sm">Add</button>
           </form>
@@ -72,32 +90,29 @@
       {% for b in budgets %}
       <div class="goal-item mb-16">
         <div class="flex-between mb-8">
-          <span class="goal-name">{{ b[1] }}</span>
-          <span class="text-muted" style="font-size:13px">₹{{ "%.0f"|format(b[3]) }} / ₹{{ "%.0f"|format(b[2]) }}</span>
+          <span class="goal-name">{{ b['category'] }}</span>
+          <span class="text-muted" style="font-size:13px">₹{{ "%.0f"|format(b['spent']) }} / ₹{{ "%.0f"|format(b['monthly_limit']) }}</span>
         </div>
         <div class="progress-bar">
-          {% set pct = (b[3]/b[2]*100) if b[2] > 0 else 0 %}
-          <div class="progress-fill {% if pct > 90 %}danger{% elif pct > 70 %}warn-fill{% endif %}" style="width: {{ [pct, 100]|min }}%"></div>
+          {% set pct = (b['spent']/b['monthly_limit']*100) if b['monthly_limit'] > 0 else 0 %}
+          <div class="progress-fill {% if pct > 100 %}danger{% elif pct > 80 %}warn-fill{% endif %}" style="width:{{ [pct,100]|min }}%"></div>
         </div>
         <div class="text-muted mt-8" style="font-size:12px">
-          ₹{{ "%.2f"|format(b[2] - b[3]) }} remaining this month
+          {% if pct > 100 %}Over budget by ₹{{ "%.2f"|format(b['spent'] - b['monthly_limit']) }}{% else %}₹{{ "%.2f"|format(b['monthly_limit'] - b['spent']) }} remaining{% endif %}
         </div>
       </div>
       {% endfor %}
     {% else %}
       <p class="empty-text">No budgets set.</p>
     {% endif %}
-
     <hr class="divider">
-    <div class="savings-summary">
-      <div class="summary-row">
-        <span class="summary-label">Wallet Balance</span>
-        <span class="summary-value">₹{{ "%.2f"|format(user.balance) }}</span>
-      </div>
-      <div class="summary-row">
-        <span class="summary-label">Savings Balance</span>
-        <span class="summary-value blue">₹{{ "%.2f"|format(user.savings) }}</span>
-      </div>
+    <div class="summary-row">
+      <span class="summary-label">Wallet</span>
+      <span class="summary-value">₹{{ "%.2f"|format(user.balance) }}</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Savings</span>
+      <span class="summary-value blue">₹{{ "%.2f"|format(user.savings) }}</span>
     </div>
   </div>
 </div>

@@ -3,6 +3,13 @@
 {% block page_title %}<h1>Dashboard</h1>{% endblock %}
 
 {% block content %}
+{% if pending_cheques > 0 or overdue_bills > 0 %}
+<div class="alert alert-info" style="margin-bottom:16px">
+  {% if pending_cheques > 0 %}{{ pending_cheques }} pending cheque(s) awaiting your approval. {% endif %}
+  {% if overdue_bills > 0 %}{{ overdue_bills }} overdue bill(s) need attention.{% endif %}
+</div>
+{% endif %}
+
 <div class="grid grid-4 mb-24">
   <div class="stat-card">
     <div class="stat-label">Wallet Balance</div>
@@ -18,7 +25,8 @@
   </div>
   <div class="stat-card">
     <div class="stat-label">Net Worth</div>
-    <div class="stat-value">₹{{ "%.2f"|format(user.balance + user.savings + total_invested) }}</div>
+    <div class="stat-value {% if net_worth < 0 %}red{% endif %}">₹{{ "%.2f"|format(net_worth) }}</div>
+    <div class="stat-sub text-muted" style="font-size:11px;margin-top:4px">Wallet + Savings + Investments − Loans − Bills</div>
   </div>
 </div>
 
@@ -49,18 +57,14 @@
     {% if recent %}
       <table class="table">
         <thead>
-          <tr>
-            <th>Type</th>
-            <th>Amount</th>
-            <th>Date</th>
-          </tr>
+          <tr><th>Type</th><th>Amount</th><th>Date</th></tr>
         </thead>
         <tbody>
           {% for txn in recent %}
           <tr>
-            <td><span class="badge {% if 'DEPOSIT' in txn[0] or 'RECEIVED' in txn[0] or 'DISBURSEMENT' in txn[0] %}badge-green{% elif 'WITHDRAW' in txn[0] or 'OUT' in txn[0] or 'PAYMENT' in txn[0] or 'TRANSFER' in txn[0] %}badge-red{% else %}badge-blue{% endif %}">{{ txn[0].replace('_', ' ') }}</span></td>
-            <td class="amount">₹{{ "%.2f"|format(txn[1]) }}</td>
-            <td>{{ txn[2].strftime('%d %b, %H:%M') }}</td>
+            <td><span class="badge {% if txn['type'] in ['DEPOSIT','LOAN_DISBURSEMENT','CHEQUE_RECEIVED','TRANSFER_IN','ADMIN_CREDIT'] %}badge-green{% elif txn['type'] in ['WITHDRAWAL','BILL_PAYMENT','TRANSFER_OUT','UPI_TRANSFER','NEFT_TRANSFER','INTL_TRANSFER','LOAN_REPAYMENT'] %}badge-red{% else %}badge-blue{% endif %}">{{ txn['type'].replace('_',' ') }}</span></td>
+            <td class="amount">₹{{ "%.2f"|format(txn['amount']) }}</td>
+            <td class="text-muted">{{ txn['timestamp'].strftime('%d %b, %H:%M') }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -78,21 +82,28 @@
       <span class="summary-value {% if active_loans > 0 %}warn{% endif %}">{{ active_loans }}</span>
     </div>
     <div class="summary-row">
+      <span class="summary-label">Loan Liability</span>
+      <span class="summary-value {% if loan_liability > 0 %}warn{% endif %}">₹{{ "%.2f"|format(loan_liability) }}</span>
+    </div>
+    <div class="summary-row">
       <span class="summary-label">Pending Bills</span>
       <span class="summary-value {% if pending_bills > 0 %}warn{% endif %}">{{ pending_bills }}</span>
     </div>
+    {% if overdue_bills > 0 %}
+    <div class="summary-row">
+      <span class="summary-label">Overdue Bills</span>
+      <span class="summary-value" style="color:var(--danger)">{{ overdue_bills }}</span>
+    </div>
+    {% endif %}
     <div class="summary-row">
       <span class="summary-label">Total Invested</span>
       <span class="summary-value">₹{{ "%.2f"|format(total_invested) }}</span>
     </div>
     <hr class="divider">
     <div class="quick-links">
-      {% if active_loans > 0 %}
-        <a href="{{ url_for('loans') }}" class="btn btn-ghost btn-sm">Manage Loans</a>
-      {% endif %}
-      {% if pending_bills > 0 %}
-        <a href="{{ url_for('bills') }}" class="btn btn-ghost btn-sm">Pay Bills</a>
-      {% endif %}
+      {% if active_loans > 0 %}<a href="{{ url_for('loans') }}" class="btn btn-ghost btn-sm">Manage Loans</a>{% endif %}
+      {% if pending_bills > 0 %}<a href="{{ url_for('bills') }}" class="btn btn-ghost btn-sm">Pay Bills</a>{% endif %}
+      {% if pending_cheques > 0 %}<a href="{{ url_for('transfers') }}" class="btn btn-ghost btn-sm">Approve Cheques</a>{% endif %}
       <a href="{{ url_for('investments') }}" class="btn btn-ghost btn-sm">Invest</a>
     </div>
   </div>

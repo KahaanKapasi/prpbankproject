@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %} — Feature Flags{% endblock %}
+{% block page_title %}<h1>Feature Flags</h1>{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">All Feature Flags</div>
+  <table class="table">
+    <thead><tr><th>Key</th><th>Description</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody>
+      {% for f in flags %}
+      <tr>
+        <td><code style="font-family:monospace;font-size:12px">{{ f['key'] }}</code></td>
+        <td class="text-muted">{{ f['description'] or '—' }}</td>
+        <td><span class="badge {% if f['enabled'] %}badge-green{% else %}badge-red{% endif %}">{% if f['enabled'] %}Enabled{% else %}Disabled{% endif %}</span></td>
+        <td>
+          <form method="POST" action="{{ url_for('admin_flag_toggle') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="key" value="{{ f['key'] }}">
+            <button type="submit" class="btn btn-ghost btn-sm">{% if f['enabled'] %}Disable{% else %}Enable{% endif %}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

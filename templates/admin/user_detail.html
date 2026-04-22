@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %} — User Detail{% endblock %}
+{% block page_title %}<h1>User: {{ target['username'] }}</h1>{% endblock %}
+
+{% block content %}
+<div class="grid grid-2 mb-24">
+  <div class="card">
+    <div class="card-title">Profile</div>
+    <div class="summary-row"><span class="summary-label">ID</span><span class="summary-value">#{{ target['id'] }}</span></div>
+    <div class="summary-row"><span class="summary-label">Username</span><span class="summary-value">{{ target['username'] }}</span></div>
+    <div class="summary-row"><span class="summary-label">Full Name</span><span class="summary-value">{{ target['full_name'] or '—' }}</span></div>
+    <div class="summary-row"><span class="summary-label">Email</span><span class="summary-value">{{ target['email'] or '—' }}</span></div>
+    <div class="summary-row"><span class="summary-label">Phone</span><span class="summary-value">{{ target['phone'] or '—' }}</span></div>
+    <div class="summary-row"><span class="summary-label">Account No.</span><span class="summary-value">{{ target['account_number'] or '—' }}</span></div>
+    <div class="summary-row"><span class="summary-label">Role</span><span class="summary-value"><span class="badge {% if target['role'] == 'ADMIN' %}badge-blue{% else %}badge-green{% endif %}">{{ target['role'] }}</span></span></div>
+    <div class="summary-row"><span class="summary-label">Status</span><span class="summary-value"><span class="badge {% if target['status'] == 'ACTIVE' %}badge-green{% elif target['status'] == 'FROZEN' %}badge-red{% else %}badge-yellow{% endif %}">{{ target['status'] }}</span></span></div>
+    <div class="summary-row"><span class="summary-label">Wallet</span><span class="summary-value">₹{{ "%.2f"|format(target['balance']) }}</span></div>
+    <div class="summary-row"><span class="summary-label">Savings</span><span class="summary-value">₹{{ "%.2f"|format(target['savings_balance']) }}</span></div>
+    {% if target['frozen_reason'] %}<div class="summary-row"><span class="summary-label">Freeze Reason</span><span class="summary-value" style="color:var(--danger)">{{ target['frozen_reason'] }}</span></div>{% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Admin Actions</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      {% if target['status'] == 'ACTIVE' %}
+      <form method="POST" action="{{ url_for('admin_freeze_user', uid=target['id']) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label>Freeze Reason</label>
+          <input type="text" name="reason" placeholder="Reason for freezing" required>
+        </div>
+        <button type="submit" class="btn btn-danger btn-sm">Freeze Account</button>
+      </form>
+      {% else %}
+      <form method="POST" action="{{ url_for('admin_unfreeze_user', uid=target['id']) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-success btn-sm">Unfreeze Account</button>
+      </form>
+      {% endif %}
+
+      <form method="POST" action="{{ url_for('admin_credit_user', uid=target['id']) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label>Manual Credit (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Credit Wallet</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-2 mb-24">
+  <div class="card">
+    <div class="card-title">Recent Transactions</div>
+    {% if txns %}
+      <table class="table">
+        <thead><tr><th>Type</th><th>Amount</th><th>Ref</th><th>Date</th></tr></thead>
+        <tbody>
+          {% for t in txns %}
+          <tr>
+            <td><span class="badge badge-blue">{{ t['type'].replace('_',' ') }}</span></td>
+            <td class="amount">₹{{ "%.2f"|format(t['amount']) }}</td>
+            <td class="text-muted" style="font-size:11px">{{ t['reference_id'] or '—' }}</td>
+            <td class="text-muted">{{ t['timestamp'].strftime('%d %b %H:%M') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty-text">No transactions.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Loans</div>
+    {% if loans %}
+      <table class="table">
+        <thead><tr><th>ID</th><th>Principal</th><th>Status</th><th>Remaining</th></tr></thead>
+        <tbody>
+          {% for l in loans %}
+          <tr>
+            <td>#{{ l['id'] }}</td>
+            <td>₹{{ "%.2f"|format(l['principal']) }}</td>
+            <td><span class="badge {% if l['status'] == 'ACTIVE' %}badge-yellow{% elif l['status'] == 'CLEARED' %}badge-green{% else %}badge-red{% endif %}">{{ l['status'] }}</span></td>
+            <td>₹{{ "%.2f"|format(l['total_owed'] - l['amount_paid']) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty-text">No loans.</p>
+    {% endif %}
+
+    <div class="card-title mt-16">Cards</div>
+    {% if cards %}
+      {% for c in cards %}
+      <div class="summary-row">
+        <span class="summary-label">{{ c['card_type'] }} •••• {{ c['card_number'][-4:] }}</span>
+        <span class="summary-value"><span class="badge {% if c['status'] == 'ACTIVE' %}badge-green{% else %}badge-red{% endif %}">{{ c['status'] }}</span></span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty-text">No cards.</p>
+    {% endif %}
+  </div>
+</div>
+
+<a href="{{ url_for('admin_users') }}" class="btn btn-ghost btn-sm">← Back to Users</a>
+{% endblock %}

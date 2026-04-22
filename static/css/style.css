@@ -679,3 +679,68 @@ input::placeholder { color: var(--text-dim); }
 }
 
 .action-label { font-size: 13px; font-weight: 600; }
+
+/* ── Demo credentials dropdown ───────────────────────────────────────────── */
+
+.demo-creds-wrap { margin: 12px 0 0; position: relative; }
+
+.demo-toggle-btn { width: 100%; justify-content: center; }
+
+.demo-menu {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.demo-persona-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  transition: background 0.12s;
+}
+.demo-persona-btn:last-child { border-bottom: none; }
+.demo-persona-btn:hover { background: var(--primary-dim); }
+.demo-persona-name { font-weight: 600; font-size: 13px; min-width: 52px; }
+.demo-persona-hint { font-size: 12px; color: var(--text-muted); flex: 1; }
+
+/* ── Quick amount chips ───────────────────────────────────────────────────── */
+
+.quick-amounts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* ── Admin chip in sidebar ───────────────────────────────────────────────── */
+
+.admin-chip {
+  background: #7c3aed;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  margin-left: 6px;
+}
+
+/* ── Pagination ───────────────────────────────────────────────────────────── */
+
+.pagination { display: flex; align-items: center; gap: 8px; }
+
+/* ── Amount colors ────────────────────────────────────────────────────────── */
+
+.amount-positive { color: var(--success); }
+.amount-negative { color: var(--danger); }
+.red { color: var(--danger); }
+
+/* ── Balance row ─────────────────────────────────────────────────────────── */
+
+.balance-row { display: flex; gap: 16px; font-size: 13px; color: var(--text-muted); }

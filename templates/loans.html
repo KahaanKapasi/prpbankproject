@@ -7,31 +7,45 @@
   <div class="card">
     <div class="card-title">Apply for a Loan</div>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="apply">
       <div class="form-group">
         <label>Loan Amount (₹)</label>
         <input type="number" name="principal" step="0.01" min="1" placeholder="0.00" required>
       </div>
-      <div class="info-box">
-        5% flat interest rate · Funds credited instantly
+      <div class="form-group">
+        <label>Tenure (months)</label>
+        <select name="tenure">
+          <option value="6">6 months</option>
+          <option value="12" selected>12 months</option>
+          <option value="24">24 months</option>
+          <option value="36">36 months</option>
+          <option value="60">60 months</option>
+        </select>
       </div>
+      <div class="form-group">
+        <label>Purpose</label>
+        <input type="text" name="purpose" placeholder="e.g. Home renovation, Education">
+      </div>
+      <div class="info-box">Interest rate set by the bank. Applications above the high-value threshold require admin approval before disbursal.</div>
       <button type="submit" class="btn btn-primary btn-block">Apply Now</button>
     </form>
   </div>
 
   <div class="card">
     <div class="card-title">Repay a Loan</div>
-    {% set active = loans | selectattr('4', 'equalto', 'ACTIVE') | list %}
+    {% set active = loans | selectattr('status', 'equalto', 'ACTIVE') | list %}
     {% if active %}
       <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="repay">
         <div class="form-group">
           <label>Select Loan</label>
           <select name="loan_id" required>
             {% for loan in loans %}
-              {% if loan[4] == 'ACTIVE' %}
-                <option value="{{ loan[0] }}">
-                  Loan #{{ loan[0] }} — ₹{{ "%.2f"|format(loan[2] - loan[3]) }} remaining
+              {% if loan['status'] == 'ACTIVE' %}
+                <option value="{{ loan['id'] }}">
+                  Loan #{{ loan['id'] }} — EMI ₹{{ "%.2f"|format(loan['emi']) }} — ₹{{ "%.2f"|format(loan['total_owed'] - loan['amount_paid']) }} remaining
                 </option>
               {% endif %}
             {% endfor %}
@@ -54,26 +68,19 @@
   {% if loans %}
     <table class="table">
       <thead>
-        <tr>
-          <th>ID</th>
-          <th>Principal</th>
-          <th>Total Owed</th>
-          <th>Paid</th>
-          <th>Remaining</th>
-          <th>Status</th>
-          <th>Date</th>
-        </tr>
+        <tr><th>ID</th><th>Principal</th><th>EMI</th><th>Tenure</th><th>Paid</th><th>Remaining</th><th>Status</th><th>Next Due</th></tr>
       </thead>
       <tbody>
         {% for loan in loans %}
         <tr>
-          <td>#{{ loan[0] }}</td>
-          <td>₹{{ "%.2f"|format(loan[1]) }}</td>
-          <td>₹{{ "%.2f"|format(loan[2]) }}</td>
-          <td>₹{{ "%.2f"|format(loan[3]) }}</td>
-          <td>₹{{ "%.2f"|format(loan[2] - loan[3]) }}</td>
-          <td><span class="badge {% if loan[4] == 'ACTIVE' %}badge-yellow{% else %}badge-green{% endif %}">{{ loan[4] }}</span></td>
-          <td class="text-muted">{{ loan[5][:10] }}</td>
+          <td>#{{ loan['id'] }}</td>
+          <td>₹{{ "%.2f"|format(loan['principal']) }}</td>
+          <td>₹{{ "%.2f"|format(loan['emi']) }}</td>
+          <td>{{ loan['tenure_months'] }}m</td>
+          <td>₹{{ "%.2f"|format(loan['amount_paid']) }}</td>
+          <td>₹{{ "%.2f"|format(loan['total_owed'] - loan['amount_paid']) }}</td>
+          <td><span class="badge {% if loan['status'] == 'ACTIVE' %}badge-yellow{% elif loan['status'] == 'CLEARED' %}badge-green{% elif loan['status'] == 'PENDING_APPROVAL' %}badge-blue{% else %}badge-red{% endif %}">{{ loan['status'].replace('_',' ') }}</span></td>
+          <td class="text-muted">{{ loan['next_due_date'] or '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>

@@ -5,21 +5,24 @@
 {% block content %}
 <div class="grid grid-2 mb-24">
   <div class="card">
-    <div class="card-title">Safe Investments</div>
-    <div class="info-box mb-16">FD 5% · Bonds 7% · Mutual Fund 10%</div>
+    <div class="card-title">Safe Instruments</div>
+    <div class="info-box mb-16">
+      FD {{ safe_rates.FD }}% · Bonds {{ safe_rates.BONDS }}% · MF {{ safe_rates.MF }}% (annual, 1-year term)
+    </div>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="safe">
       <div class="form-group">
-        <label>Type</label>
+        <label>Instrument</label>
         <select name="inv_type" required>
-          <option value="FD">Fixed Deposit (5%)</option>
-          <option value="BONDS">Bonds (7%)</option>
-          <option value="MF">Mutual Fund (10%)</option>
+          <option value="FD">Fixed Deposit ({{ safe_rates.FD }}%)</option>
+          <option value="BONDS">Bonds ({{ safe_rates.BONDS }}%)</option>
+          <option value="MF">Mutual Fund ({{ safe_rates.MF }}%)</option>
         </select>
       </div>
       <div class="form-group">
         <label>Amount (₹)</label>
-        <input type="number" name="amount" step="0.01" min="1" max="{{ user.balance }}" placeholder="0.00" required>
+        <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
       </div>
       <div class="balance-chip">Available: ₹{{ "%.2f"|format(user.balance) }}</div>
       <button type="submit" class="btn btn-primary btn-block">Invest</button>
@@ -27,27 +30,37 @@
   </div>
 
   <div class="card">
-    <div class="card-title">Stocks</div>
+    <div class="card-title">Buy Stocks</div>
     <div class="stock-list mb-16">
-      <div class="stock-row"><span>TechCorp</span><span class="stock-price">₹100</span></div>
-      <div class="stock-row"><span>GreenEnergy</span><span class="stock-price">₹200</span></div>
-      <div class="stock-row"><span>FinBank</span><span class="stock-price">₹150</span></div>
+      {% for s in stocks %}
+      <div class="stock-row">
+        <span>{{ s['name'] }}</span>
+        <span class="stock-price">₹{{ "%.2f"|format(s['price']) }}
+          {% if s['day_change'] is not none %}
+            <span style="font-size:11px;color:{% if s['day_change'] >= 0 %}var(--success){% else %}var(--danger){% endif %}">
+              {% if s['day_change'] >= 0 %}▲{% else %}▼{% endif %}{{ "%.2f"|format(s['day_change']|abs) }}%
+            </span>
+          {% endif %}
+        </span>
+      </div>
+      {% endfor %}
     </div>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="stock">
       <div class="form-group">
         <label>Stock</label>
         <select name="stock" required>
-          <option value="TechCorp">TechCorp — ₹100/share</option>
-          <option value="GreenEnergy">GreenEnergy — ₹200/share</option>
-          <option value="FinBank">FinBank — ₹150/share</option>
+          {% for s in stocks %}
+          <option value="{{ s['symbol'] }}">{{ s['name'] }} — ₹{{ "%.2f"|format(s['price']) }}/share</option>
+          {% endfor %}
         </select>
       </div>
       <div class="form-group">
         <label>Quantity</label>
         <input type="number" name="qty" min="1" placeholder="1" required>
       </div>
-      <button type="submit" class="btn btn-primary btn-block">Buy Stock</button>
+      <button type="submit" class="btn btn-primary btn-block">Buy</button>
     </form>
   </div>
 </div>
@@ -57,18 +70,20 @@
   {% if investments %}
     <table class="table">
       <thead>
-        <tr><th>Type</th><th>Invested</th><th>Return</th><th>P&amp;L</th><th>Date</th></tr>
+        <tr><th>Type</th><th>Invested</th><th>Current Value</th><th>P&amp;L</th><th>Matures</th><th>Date</th></tr>
       </thead>
       <tbody>
         {% for inv in investments %}
+        {% set pl = inv['current_value'] - inv['amount'] %}
         <tr>
-          <td><span class="badge badge-blue">{{ inv[0] }}</span></td>
-          <td class="amount">₹{{ "%.2f"|format(inv[1]) }}</td>
-          <td class="amount">₹{{ "%.2f"|format(inv[2]) }}</td>
-          <td class="amount {% if inv[2] >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
-            {% if inv[2] >= 0 %}+{% endif %}₹{{ "%.2f"|format(inv[2]) }}
+          <td><span class="badge badge-blue">{{ inv['type'] }}</span></td>
+          <td class="amount">₹{{ "%.2f"|format(inv['amount']) }}</td>
+          <td class="amount">₹{{ "%.2f"|format(inv['current_value']) }}</td>
+          <td class="amount {% if pl >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
+            {% if pl >= 0 %}+{% endif %}₹{{ "%.2f"|format(pl) }}
           </td>
-          <td class="text-muted">{{ inv[3][:10] }}</td>
+          <td class="text-muted">{{ inv['maturity_date'] or '—' }}</td>
+          <td class="text-muted">{{ inv['timestamp'].strftime('%d %b %Y') }}</td>
         </tr>
         {% endfor %}
       </tbody>
