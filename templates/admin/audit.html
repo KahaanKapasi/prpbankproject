@@ -1,33 +1,56 @@
 {% extends "base.html" %}
-{% block title %} — Audit Log{% endblock %}
-{% block page_title %}<h1>Audit Log</h1>{% endblock %}
+
+{% block title %} — Admin — Audit Log{% endblock %}
+
+{% block page_title %}<h1>Admin — Audit Log</h1>{% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-title">All Admin Actions</div>
-  {% if entries %}
-    <table class="table">
-      <thead><tr><th>Admin</th><th>Action</th><th>Target</th><th>Before</th><th>After</th><th>Time</th></tr></thead>
-      <tbody>
-        {% for e in entries %}
-        <tr>
-          <td>{{ e['username'] or '#' + (e['admin_id']|string) }}</td>
-          <td><span class="badge badge-blue">{{ e['action'] }}</span></td>
-          <td class="text-muted">{{ e['target_type'] or '—' }} {% if e['target_id'] %}#{{ e['target_id'] }}{% endif %}</td>
-          <td class="text-muted" style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">{{ e['before_json'] or '—' }}</td>
-          <td class="text-muted" style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">{{ e['after_json'] or '—' }}</td>
-          <td class="text-muted">{{ e['timestamp'].strftime('%d %b %H:%M') }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <div class="pagination mt-16">
-      {% if page > 1 %}<a href="{{ url_for('admin_audit', page=page-1) }}" class="btn btn-ghost btn-sm">← Prev</a>{% endif %}
-      <span class="text-muted" style="padding:0 12px">Page {{ page }} of {{ total_pages }}</span>
-      {% if page < total_pages %}<a href="{{ url_for('admin_audit', page=page+1) }}" class="btn btn-ghost btn-sm">Next →</a>{% endif %}
-    </div>
-  {% else %}
-    <p class="empty-text">No audit entries yet.</p>
-  {% endif %}
+<div class="mb-16">
+  <input type="text" class="table-search" id="audit-search" placeholder="Search audit log…" style="max-width:320px;">
 </div>
+
+<div class="inst-card">
+  <div class="inst-card-body" style="padding:0;">
+    {% if audit %}
+    <div style="overflow-x:auto;">
+      <table class="inst-table" id="audit-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Timestamp</th>
+            <th>Actor</th>
+            <th>Action</th>
+            <th>Target</th>
+            <th>Meta</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for aid, ts, actor, action, target, meta in audit %}
+          <tr>
+            <td class="text-muted">{{ aid }}</td>
+            <td class="text-muted">{{ ts|datetimeformat }}</td>
+            <td>{{ actor }}</td>
+            <td>{{ action }}</td>
+            <td>{{ target }}</td>
+            <td class="text-dim" style="font-size:12px;">{{ meta or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty-text">No audit entries</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+document.getElementById('audit-search').addEventListener('input', function() {
+  var q = this.value.toLowerCase();
+  var rows = document.querySelectorAll('#audit-table tbody tr');
+  rows.forEach(function(row) {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
 {% endblock %}

@@ -1,5 +1,7 @@
 {% extends "base.html" %}
+
 {% block title %} — Dashboard{% endblock %}
+
 {% block page_title %}<h1>Dashboard</h1>{% endblock %}
 
 {% block content %}
@@ -13,98 +15,126 @@
 <div class="grid grid-4 mb-24">
   <div class="stat-card">
     <div class="stat-label">Wallet Balance</div>
-    <div class="stat-value green">₹{{ "%.2f"|format(user.balance) }}</div>
+    <div class="stat-value green">{{ user.balance|inr }}</div>
+    <canvas id="balance-chart" width="200" height="60"></canvas>
   </div>
   <div class="stat-card">
-    <div class="stat-label">Savings Account</div>
-    <div class="stat-value blue">₹{{ "%.2f"|format(user.savings) }}</div>
+    <div class="stat-label">Savings</div>
+    <div class="stat-value blue">{{ user.savings|inr }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Total Invested</div>
-    <div class="stat-value">₹{{ "%.2f"|format(total_invested) }}</div>
+    <div class="stat-value">{{ total_invested|inr }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Net Worth</div>
-    <div class="stat-value {% if net_worth < 0 %}red{% endif %}">₹{{ "%.2f"|format(net_worth) }}</div>
-    <div class="stat-sub text-muted" style="font-size:11px;margin-top:4px">Wallet + Savings + Investments − Loans − Bills</div>
+    <div class="stat-value">{{ (user.balance + user.savings + total_invested)|inr }}</div>
   </div>
 </div>
 
 <div class="grid grid-3 mb-24">
   <a href="{{ url_for('deposit') }}" class="action-card">
-    <span class="action-icon">
-      <svg width="28" height="28" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd"/></svg>
-    </span>
-    <div class="action-label">Deposit</div>
+    <div class="action-icon">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd"/></svg>
+    </div>
+    <span class="action-label">Deposit</span>
   </a>
   <a href="{{ url_for('withdraw') }}" class="action-card">
-    <span class="action-icon">
-      <svg width="28" height="28" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clip-rule="evenodd"/></svg>
-    </span>
-    <div class="action-label">Withdraw</div>
+    <div class="action-icon">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clip-rule="evenodd"/></svg>
+    </div>
+    <span class="action-label">Withdraw</span>
   </a>
   <a href="{{ url_for('transfers') }}" class="action-card">
-    <span class="action-icon">
-      <svg width="28" height="28" viewBox="0 0 20 20" fill="currentColor"><path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z"/></svg>
-    </span>
-    <div class="action-label">Transfer</div>
+    <div class="action-icon">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z"/></svg>
+    </div>
+    <span class="action-label">Transfer</span>
   </a>
 </div>
 
 <div class="grid grid-2">
-  <div class="card">
-    <div class="card-title">Recent Transactions</div>
-    {% if recent %}
-      <table class="table">
+  <div class="inst-card">
+    <div class="inst-card-header">
+      <span>Recent Transactions</span>
+      <a href="{{ url_for('transactions') }}" class="btn btn-ghost btn-sm">View All</a>
+    </div>
+    <div class="inst-card-body" style="padding:0;">
+      {% if recent %}
+      <table class="inst-table">
         <thead>
-          <tr><th>Type</th><th>Amount</th><th>Date</th></tr>
+          <tr>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Description</th>
+            <th>Date</th>
+          </tr>
         </thead>
         <tbody>
           {% for txn in recent %}
           <tr>
-            <td><span class="badge {% if txn['type'] in ['DEPOSIT','LOAN_DISBURSEMENT','CHEQUE_RECEIVED','TRANSFER_IN','ADMIN_CREDIT'] %}badge-green{% elif txn['type'] in ['WITHDRAWAL','BILL_PAYMENT','TRANSFER_OUT','UPI_TRANSFER','NEFT_TRANSFER','INTL_TRANSFER','LOAN_REPAYMENT'] %}badge-red{% else %}badge-blue{% endif %}">{{ txn['type'].replace('_',' ') }}</span></td>
-            <td class="amount">₹{{ "%.2f"|format(txn['amount']) }}</td>
-            <td class="text-muted">{{ txn['timestamp'].strftime('%d %b, %H:%M') }}</td>
+            <td>
+              {% if txn[0] == 'DEPOSIT' or txn[0] == 'TRANSFER_IN' or txn[0] == 'CHEQUE_IN' %}
+                <span class="badge badge-green">{{ txn[0] }}</span>
+              {% elif txn[0] == 'WITHDRAWAL' or txn[0] == 'TRANSFER_OUT' or txn[0] == 'CHEQUE_OUT' %}
+                <span class="badge badge-red">{{ txn[0] }}</span>
+              {% elif txn[0] == 'SELF_TRANSFER' %}
+                <span class="badge badge-blue">{{ txn[0] }}</span>
+              {% else %}
+                <span class="badge badge-yellow">{{ txn[0] }}</span>
+              {% endif %}
+            </td>
+            <td class="amount">{{ txn[1]|inr }}</td>
+            <td>{{ txn[2] }}</td>
+            <td class="text-muted">{{ txn[6]|datetimeformat }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
-      <a href="{{ url_for('transactions') }}" class="btn btn-ghost btn-sm mt-16">View All</a>
-    {% else %}
-      <p class="empty-text">No transactions yet.</p>
-    {% endif %}
+      {% else %}
+      <p class="empty-text">No recent transactions</p>
+      {% endif %}
+    </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">Quick Summary</div>
-    <div class="summary-row">
-      <span class="summary-label">Active Loans</span>
-      <span class="summary-value {% if active_loans > 0 %}warn{% endif %}">{{ active_loans }}</span>
+  <div class="inst-card">
+    <div class="inst-card-header">
+      <span>Quick Summary</span>
     </div>
-    <div class="summary-row">
-      <span class="summary-label">Loan Liability</span>
-      <span class="summary-value {% if loan_liability > 0 %}warn{% endif %}">₹{{ "%.2f"|format(loan_liability) }}</span>
-    </div>
-    <div class="summary-row">
-      <span class="summary-label">Pending Bills</span>
-      <span class="summary-value {% if pending_bills > 0 %}warn{% endif %}">{{ pending_bills }}</span>
-    </div>
-    {% if overdue_bills > 0 %}
-    <div class="summary-row">
-      <span class="summary-label">Overdue Bills</span>
-      <span class="summary-value" style="color:var(--danger)">{{ overdue_bills }}</span>
-    </div>
-    {% endif %}
-    <div class="summary-row">
-      <span class="summary-label">Total Invested</span>
-      <span class="summary-value">₹{{ "%.2f"|format(total_invested) }}</span>
-    </div>
-    <hr class="divider">
-    <div class="quick-links">
-      {% if active_loans > 0 %}<a href="{{ url_for('loans') }}" class="btn btn-ghost btn-sm">Manage Loans</a>{% endif %}
-      {% if pending_bills > 0 %}<a href="{{ url_for('bills') }}" class="btn btn-ghost btn-sm">Pay Bills</a>{% endif %}
-      {% if pending_cheques > 0 %}<a href="{{ url_for('transfers') }}" class="btn btn-ghost btn-sm">Approve Cheques</a>{% endif %}
-      <a href="{{ url_for('investments') }}" class="btn btn-ghost btn-sm">Invest</a>
+    <div class="inst-card-body">
+      <div class="summary-row">
+        <span class="summary-label">Active Loans</span>
+        <span class="summary-value">{{ active_loans }}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Pending Bills</span>
+        <span class="summary-value">{{ pending_bills }}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Total Invested</span>
+        <span class="summary-value">{{ total_invested|inr }}</span>
+      </div>
+
+      <hr class="divider">
+
+      {% if overdue_bills %}
+      <div class="inst-section-title">Overdue Bills</div>
+      {% for bill in overdue_bills %}
+      <div class="summary-row">
+        <span class="summary-label">{{ bill[0] }}</span>
+        <span class="summary-value amount-negative">{{ bill[1]|inr }} &middot; {{ bill[2]|dateformat }}</span>
+      </div>
+      {% endfor %}
+      <hr class="divider">
+      {% endif %}
+
+      <div class="inst-section-title">Quick Links</div>
+      <div class="grid grid-2" style="gap:8px;">
+        <a href="{{ url_for('loans') }}" class="btn btn-ghost btn-sm btn-block">Loans</a>
+        <a href="{{ url_for('bills') }}" class="btn btn-ghost btn-sm btn-block">Bills</a>
+        <a href="{{ url_for('cards') }}" class="btn btn-ghost btn-sm btn-block">Cards</a>
+        <a href="{{ url_for('investments') }}" class="btn btn-ghost btn-sm btn-block">Investments</a>
+      </div>
     </div>
   </div>
 </div>

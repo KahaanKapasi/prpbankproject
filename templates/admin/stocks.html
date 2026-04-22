@@ -1,55 +1,42 @@
 {% extends "base.html" %}
-{% block title %} — Stocks{% endblock %}
-{% block page_title %}<h1>Stock Prices</h1>{% endblock %}
+
+{% block title %} — Admin — Stocks{% endblock %}
+
+{% block page_title %}<h1>Admin — Stocks</h1>{% endblock %}
 
 {% block content %}
-<div class="card mb-24">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div class="card-title" style="margin:0">Current Prices</div>
-    <form method="POST" action="{{ url_for('admin_stocks_tick') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="btn btn-primary btn-sm">⟳ Simulate Tick (±2%)</button>
-    </form>
+<div class="inst-card">
+  <div class="inst-card-body" style="padding:0;">
+    {% if stocks %}
+    <table class="inst-table">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Name</th>
+          <th style="text-align:right;">Price</th>
+          <th style="text-align:right;">Change %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for symbol, name, price, change_pct in stocks %}
+        <tr>
+          <td><strong>{{ symbol }}</strong></td>
+          <td>{{ name }}</td>
+          <td style="text-align:right;">{{ price|inr }}</td>
+          <td style="text-align:right;">
+            {% if change_pct >= 0 %}
+              <span style="color:var(--success);">+{{ '%.2f'|format(change_pct) }}%</span>
+            {% else %}
+              <span style="color:var(--danger);">{{ '%.2f'|format(change_pct) }}%</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty-text">No stocks data</p>
+    {% endif %}
   </div>
-  <table class="table">
-    <thead><tr><th>Symbol</th><th>Name</th><th>Price</th><th>Day Change</th><th>Last Updated</th></tr></thead>
-    <tbody>
-      {% for s in stocks %}
-      <tr>
-        <td><strong>{{ s['symbol'] }}</strong></td>
-        <td>{{ s['name'] }}</td>
-        <td class="amount">₹{{ "%.2f"|format(s['price']) }}</td>
-        <td>
-          {% if s['day_change'] is not none %}
-            <span style="color:{% if s['day_change'] >= 0 %}var(--success){% else %}var(--danger){% endif %}">
-              {% if s['day_change'] >= 0 %}▲{% else %}▼{% endif %} {{ "%.2f"|format(s['day_change']|abs) }}%
-            </span>
-          {% else %}—{% endif %}
-        </td>
-        <td class="text-muted">{{ s['updated_at'].strftime('%d %b %H:%M') }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-<div class="card">
-  <div class="card-title">Add / Update Stock</div>
-  <form method="POST" action="{{ url_for('admin_stock_update') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="form-group" style="margin:0;flex:0 0 120px">
-      <label>Symbol</label>
-      <input type="text" name="symbol" placeholder="AAPL" required>
-    </div>
-    <div class="form-group" style="margin:0;flex:1;min-width:160px">
-      <label>Name</label>
-      <input type="text" name="name" placeholder="Apple Inc." required>
-    </div>
-    <div class="form-group" style="margin:0;flex:0 0 120px">
-      <label>Price (₹)</label>
-      <input type="number" name="price" step="0.01" min="0.01" placeholder="0.00" required>
-    </div>
-    <button type="submit" class="btn btn-primary" style="margin-bottom:0">Save</button>
-  </form>
 </div>
 {% endblock %}

@@ -1,84 +1,89 @@
 {% extends "base.html" %}
 {% block title %} — Cards{% endblock %}
-{% block page_title %}<h1>Card Management</h1>{% endblock %}
+{% block page_title %}<h1>Cards</h1>{% endblock %}
 
 {% block content %}
-<div class="grid grid-2 mb-24">
-  <div class="card">
-    <div class="card-title">Add New Card</div>
-    <form method="POST">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="add">
-      <div class="form-group">
-        <label>Card Type</label>
-        <select name="card_type">
-          <option value="DEBIT">Debit</option>
-          <option value="CREDIT">Credit</option>
-          <option value="VIRTUAL">Virtual</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Network</label>
-        <select name="network">
-          <option value="VISA">Visa</option>
-          <option value="MASTERCARD">Mastercard</option>
-          <option value="RUPAY">RuPay</option>
-        </select>
-      </div>
-      <button type="submit" class="btn btn-primary">Generate Card</button>
-    </form>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Manage Card</div>
-    {% if cards %}
-      <form method="POST" id="cardForm">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<!-- Issue New Card -->
+<div class="inst-card mb-24">
+  <div class="inst-card-header"><span>Issue a New Card</span></div>
+  <div class="inst-card-body">
+    <form method="POST" action="{{ url_for('cards') }}">
+      <input type="hidden" name="action" value="issue">
+      <div class="grid grid-2" style="gap:12px;">
         <div class="form-group">
-          <label>Select Card</label>
-          <select name="card_id" required>
-            {% for card in cards %}
-              <option value="{{ card['id'] }}">{{ card['card_type'] }} •••• {{ card['card_number'][-4:] }} ({{ card['network'] }}) — {{ card['status'] }}</option>
-            {% endfor %}
+          <label>Card Type</label>
+          <select name="card_type" required>
+            <option value="Debit">Debit</option>
+            <option value="Credit">Credit</option>
           </select>
         </div>
-        <div class="btn-row">
-          <button type="submit" name="action" value="block" class="btn btn-danger btn-sm">Block</button>
-          <button type="submit" name="action" value="unblock" class="btn btn-success btn-sm">Unblock</button>
-          <button type="submit" name="action" value="renew" class="btn btn-ghost btn-sm">Renew</button>
+        <div class="form-group">
+          <label>Brand</label>
+          <select name="brand" required>
+            <option value="Visa">Visa</option>
+            <option value="Mastercard">Mastercard</option>
+            <option value="RuPay">RuPay</option>
+          </select>
         </div>
-      </form>
-    {% else %}
-      <p class="empty-text">No cards yet.</p>
-    {% endif %}
+      </div>
+      <button type="submit" class="btn btn-primary">Issue Card</button>
+    </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-title">Your Cards</div>
-  {% if cards %}
-    <div class="cards-grid">
-      {% for card in cards %}
-      <div class="card-visual {% if card['status'] == 'BLOCKED' %}blocked{% endif %}">
-        <div class="card-bank">PRP Bank · {{ card['network'] }}</div>
-        <div class="card-number">{{ card['card_number'][:4] }} **** **** {{ card['card_number'][-4:] }}</div>
-        <div class="card-footer">
-          <div>
-            <div style="font-size:10px;opacity:.7">CARDHOLDER</div>
-            <div>{{ card['holder_name'] or 'N/A' }}</div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-size:10px;opacity:.7">EXPIRES</div>
-            <div>{{ card['expiry_date'] }}</div>
-          </div>
-          <span class="card-status-badge {% if card['status'] == 'ACTIVE' %}active{% else %}blocked{% endif %}">{{ card['status'] }}</span>
-        </div>
-        <div style="font-size:11px;opacity:.6;margin-top:4px">{{ card['card_type'] }}</div>
+<!-- Cards Grid -->
+{% if cards %}
+<div class="cards-grid">
+  {% for card in cards %}
+  <div>
+    <div class="card-visual{% if card[5] == 'BLOCKED' %} blocked{% endif %}">
+      <div class="card-bank">PRP BANK</div>
+      <div class="card-number">**** **** **** {{ card[4] }}</div>
+      <div class="card-footer">
+        <span>{{ card[2] }}</span>
+        <span>{{ card[8] }}</span>
+        {% if card[5] == 'ACTIVE' %}
+          <span class="badge badge-green">{{ card[5] }}</span>
+        {% else %}
+          <span class="badge badge-red">{{ card[5] }}</span>
+        {% endif %}
       </div>
-      {% endfor %}
     </div>
-  {% else %}
-    <p class="empty-text">No cards found. Add one above.</p>
-  {% endif %}
+
+    <div style="margin-top:10px;" class="flex-between">
+      <form method="POST" action="{{ url_for('cards') }}" style="display:inline;">
+        <input type="hidden" name="action" value="toggle">
+        <input type="hidden" name="card_id" value="{{ card[0] }}">
+        {% if card[5] == 'ACTIVE' %}
+          <button type="submit" class="btn btn-danger btn-sm">Block</button>
+        {% else %}
+          <button type="submit" class="btn btn-success btn-sm">Activate</button>
+        {% endif %}
+      </form>
+
+      {% if card[3] == 'Credit' %}
+      <span class="balance-chip">
+        {{ card[7]|inr }} / {{ card[6]|inr }}
+      </span>
+      {% endif %}
+    </div>
+
+    {% if card[3] == 'Credit' %}
+    <div style="margin-top:8px;">
+      <div class="progress-bar">
+        <div class="progress-fill{% if card[7] / card[6] > 0.8 %} danger{% elif card[7] / card[6] > 0.5 %} warning{% endif %}"
+             style="width:{{ (card[7] / card[6] * 100)|round(1) }}%"></div>
+      </div>
+      <div class="flex-between" style="margin-top:4px;">
+        <span class="text-dim" style="font-size:11px;">Used</span>
+        <span class="text-dim" style="font-size:11px;">Limit: {{ card[6]|inr }}</span>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
 </div>
+{% else %}
+<p class="empty-text">No cards issued yet. Create one above.</p>
+{% endif %}
 {% endblock %}

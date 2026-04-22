@@ -1,67 +1,104 @@
 {% extends "base.html" %}
-{% block title %} — Admin{% endblock %}
+
+{% block title %} — Admin Dashboard{% endblock %}
+
 {% block page_title %}<h1>Admin Dashboard</h1>{% endblock %}
 
 {% block content %}
 <div class="grid grid-4 mb-24">
   <div class="stat-card">
-    <div class="stat-label">Total Users</div>
-    <div class="stat-value">{{ total_users }}</div>
+    <div class="stat-label">Pending Approvals</div>
+    <div class="stat-value warning">{{ pending_count }}</div>
+    <div class="text-dim" style="font-size:12px;">{{ high_risk }} high-risk</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Active Users</div>
-    <div class="stat-value green">{{ active_users }}</div>
+    <div class="stat-value">{{ active_users }}</div>
+    <div class="text-dim" style="font-size:12px;">{{ frozen_users }} frozen</div>
   </div>
   <div class="stat-card">
-    <div class="stat-label">Frozen Users</div>
-    <div class="stat-value {% if frozen_users > 0 %}red{% endif %}">{{ frozen_users }}</div>
+    <div class="stat-label">Flagged Transactions</div>
+    <div class="stat-value danger">{{ flagged_txns }}</div>
   </div>
   <div class="stat-card">
-    <div class="stat-label">Pending Approvals</div>
-    <div class="stat-value {% if pending_approvals > 0 %}warn{% endif %}">{{ pending_approvals }}</div>
-  </div>
-</div>
-
-<div class="grid grid-2 mb-24">
-  <div class="stat-card">
-    <div class="stat-label">Deposits Today</div>
-    <div class="stat-value green">₹{{ "%.2f"|format(deposits_today) }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Loans Outstanding</div>
-    <div class="stat-value">₹{{ "%.2f"|format(loans_outstanding) }}</div>
+    <div class="stat-label">Assets Under Mgmt</div>
+    <div class="stat-value">{{ total_aum|inr }}</div>
   </div>
 </div>
 
 <div class="grid grid-2">
-  <div class="card">
-    <div class="card-title">Quick Actions</div>
-    <div class="quick-links" style="flex-direction:column;gap:8px">
-      <a href="{{ url_for('admin_queue') }}" class="btn btn-primary btn-sm">Review Approval Queue ({{ pending_approvals }})</a>
-      <a href="{{ url_for('admin_users') }}" class="btn btn-ghost btn-sm">Manage Users</a>
-      <a href="{{ url_for('admin_stocks') }}" class="btn btn-ghost btn-sm">Simulate Stock Tick</a>
-      <a href="{{ url_for('admin_seed_page') }}" class="btn btn-ghost btn-sm">Reseed Demo Data</a>
+  <div class="inst-card">
+    <div class="inst-card-header">
+      <span>Pending Approvals</span>
+      <a href="{{ url_for('admin_approvals') }}" class="btn btn-ghost btn-sm">View All</a>
     </div>
-  </div>
-  <div class="card">
-    <div class="card-title">Recent Admin Actions</div>
-    {% if recent_audit %}
-      <table class="table">
-        <thead><tr><th>Admin</th><th>Action</th><th>Target</th><th>Time</th></tr></thead>
-        <tbody>
-          {% for a in recent_audit %}
+    <div class="inst-card-body" style="padding:0;">
+      {% if pending_approvals %}
+      <table class="inst-table">
+        <thead>
           <tr>
-            <td>{{ a['admin_id'] or '—' }}</td>
-            <td><span class="badge badge-blue">{{ a['action'] }}</span></td>
-            <td class="text-muted">{{ a['target_type'] }} #{{ a['target_id'] or '—' }}</td>
-            <td class="text-muted">{{ a['timestamp'].strftime('%d %b %H:%M') }}</td>
+            <th>Type</th>
+            <th>Detail</th>
+            <th>Risk</th>
+            <th style="text-align:right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for kind, detail, risk, amount, status, submitted_by, submitted_at in pending_approvals %}
+          <tr>
+            <td>{{ kind }}</td>
+            <td>{{ detail }}</td>
+            <td>
+              {% if risk == 'high' %}
+                <span class="badge badge-red">{{ risk }}</span>
+              {% elif risk == 'medium' %}
+                <span class="badge badge-yellow">{{ risk }}</span>
+              {% else %}
+                <span class="badge badge-green">{{ risk }}</span>
+              {% endif %}
+            </td>
+            <td style="text-align:right;">{{ amount|inr }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
-    {% else %}
-      <p class="empty-text">No admin actions yet.</p>
-    {% endif %}
+      {% else %}
+      <p class="empty-text">No pending approvals</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="inst-card">
+    <div class="inst-card-header">
+      <span>Recent Audit</span>
+      <a href="{{ url_for('admin_audit') }}" class="btn btn-ghost btn-sm">View All</a>
+    </div>
+    <div class="inst-card-body" style="padding:0;">
+      {% if recent_audit %}
+      <table class="inst-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Actor</th>
+            <th>Action</th>
+            <th>Target</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ts, actor, action, target, meta in recent_audit %}
+          <tr>
+            <td class="text-muted">{{ ts|datetimeformat }}</td>
+            <td>{{ actor }}</td>
+            <td>{{ action }}</td>
+            <td>{{ target }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty-text">No audit entries</p>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endblock %}

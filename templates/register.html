@@ -15,8 +15,8 @@
           <path d="M7 22V14l9-6 9 6v8" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
           <rect x="13" y="16" width="6" height="6" rx="1" fill="#fff"/>
         </svg>
-        <div class="auth-logo-text">PRP Bank</div>
-        <div class="auth-logo-sub">Create your account</div>
+        <h2>PRP Bank</h2>
+        <p>Create your account</p>
       </div>
 
       {% with messages = get_flashed_messages(with_categories=true) %}
@@ -34,25 +34,21 @@
           <input type="text" name="full_name" placeholder="Your full name" autofocus>
         </div>
         <div class="form-group">
-          <label>Username</label>
-          <input type="text" name="name" placeholder="Choose a username" required>
+          <label for="name">Full Name</label>
+          <input type="text" id="name" name="name" placeholder="Enter your full name" required autofocus>
         </div>
         <div class="form-group">
-          <label>Email (optional)</label>
-          <input type="email" name="email" placeholder="you@example.com">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" placeholder="Enter your email">
         </div>
         <div class="form-group">
-          <label>Phone (optional)</label>
-          <input type="tel" name="phone" placeholder="+91 98765 43210">
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" name="password" placeholder="At least 4 characters" required>
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" placeholder="Create a password" required>
         </div>
         <button type="submit" class="btn btn-primary btn-block">Create Account</button>
       </form>
 
-      <div class="auth-link">
+      <div class="auth-footer">
         Already have an account? <a href="{{ url_for('login') }}">Sign in</a>
       </div>
     </div>
