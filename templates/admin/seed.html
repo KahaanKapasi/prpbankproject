@@ -1,32 +1,51 @@
 {% extends "base.html" %}
-{% block title %} — Seed Data{% endblock %}
-{% block page_title %}<h1>Seed Demo Data</h1>{% endblock %}
+
+{% block title %} — Admin — Seed / Reset{% endblock %}
+
+{% block page_title %}<h1>Admin — Seed / Reset</h1>{% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-title">Reseed All Demo Data</div>
-  <div class="info-box mb-16">
-    This will <strong>truncate all tables</strong> and re-insert the default demo personas and rich sample data.
-    All existing user data, transactions, loans, cards, investments, and goals will be lost.
-    Admin accounts will be re-created with default credentials (admin/admin, alice/alice, etc.).
+<div class="form-page">
+  <div class="inst-card">
+    <div class="inst-card-body">
+      <div class="seed-warning mb-24">
+        <strong>Warning:</strong> This will delete ALL data and re-create demo users and sample data.
+      </div>
+
+      <div class="mb-24">
+        <div class="card-title" style="margin-bottom:12px;">Demo Users</div>
+        <table class="inst-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Password</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Admin</td>
+              <td><span class="badge badge-red">ADMIN</span></td>
+              <td class="text-muted">admin</td>
+            </tr>
+            <tr>
+              <td>Alice</td>
+              <td><span class="badge badge-blue">USER</span></td>
+              <td class="text-muted">alice</td>
+            </tr>
+            <tr>
+              <td>Bob</td>
+              <td><span class="badge badge-blue">USER</span></td>
+              <td class="text-muted">bob</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <form method="POST" id="seed-form">
+        <button type="submit" class="seed-btn btn btn-danger btn-block" onclick="return confirm('Are you sure you want to reset ALL data? This cannot be undone.');">Reset All Demo Data</button>
+      </form>
+    </div>
   </div>
-  <div class="mb-16">
-    <p>Demo personas that will be created:</p>
-    <table class="table">
-      <thead><tr><th>Username</th><th>Password</th><th>Role</th><th>Persona</th></tr></thead>
-      <tbody>
-        <tr><td><strong>admin</strong></td><td>admin</td><td><span class="badge badge-blue">ADMIN</span></td><td>Bank operator</td></tr>
-        <tr><td><strong>alice</strong></td><td>alice</td><td><span class="badge badge-green">USER</span></td><td>Everyday customer — goals, budgets, cards</td></tr>
-        <tr><td><strong>bob</strong></td><td>bob</td><td><span class="badge badge-green">USER</span></td><td>Loan-heavy — active loan, overdue bill, pending cheque</td></tr>
-        <tr><td><strong>carol</strong></td><td>carol</td><td><span class="badge badge-green">USER</span></td><td>Investor — stocks, FD, bonds, large portfolio</td></tr>
-        <tr><td><strong>dev</strong></td><td>dev</td><td><span class="badge badge-green">USER</span></td><td>New user — empty states</td></tr>
-        <tr><td><strong>eve</strong></td><td>eve</td><td><span class="badge badge-green">USER</span></td><td>Counterparty — receives cheques and transfers</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <form method="POST" action="{{ url_for('admin_seed_run') }}" onsubmit="return confirm('Reseed everything? This cannot be undone.')">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit" class="btn btn-danger">Reseed Demo Data</button>
-  </form>
 </div>
 {% endblock %}

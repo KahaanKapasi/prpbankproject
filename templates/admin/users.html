@@ -1,38 +1,79 @@
 {% extends "base.html" %}
-{% block title %} — Users{% endblock %}
-{% block page_title %}<h1>Users</h1>{% endblock %}
+
+{% block title %} — Admin — Users{% endblock %}
+
+{% block page_title %}<h1>Admin — Users</h1>{% endblock %}
 
 {% block content %}
-<div class="card mb-24">
-  <form method="GET" style="display:flex;gap:8px;align-items:center">
-    <input type="text" name="q" value="{{ q }}" placeholder="Search by username, name, email…" style="flex:1">
-    <button type="submit" class="btn btn-primary btn-sm">Search</button>
-    {% if q %}<a href="{{ url_for('admin_users') }}" class="btn btn-ghost btn-sm">Clear</a>{% endif %}
-  </form>
+<div class="mb-16">
+  <input type="text" class="table-search" id="user-search" placeholder="Search users…" style="max-width:320px;">
 </div>
 
-<div class="card">
-  <div class="card-title">All Users ({{ users|length }})</div>
-  {% if users %}
-    <table class="table">
-      <thead><tr><th>ID</th><th>Username</th><th>Full Name</th><th>Role</th><th>Status</th><th>Balance</th><th>Joined</th><th>Actions</th></tr></thead>
-      <tbody>
-        {% for u in users %}
-        <tr>
-          <td class="text-muted">#{{ u['id'] }}</td>
-          <td><strong>{{ u['username'] }}</strong></td>
-          <td>{{ u['full_name'] or '—' }}</td>
-          <td><span class="badge {% if u['role'] == 'ADMIN' %}badge-blue{% else %}badge-green{% endif %}">{{ u['role'] }}</span></td>
-          <td><span class="badge {% if u['status'] == 'ACTIVE' %}badge-green{% elif u['status'] == 'FROZEN' %}badge-red{% else %}badge-yellow{% endif %}">{{ u['status'] }}</span></td>
-          <td class="amount">₹{{ "%.2f"|format(u['balance']) }}</td>
-          <td class="text-muted">{{ u['created_at'].strftime('%d %b %Y') if u['created_at'] else '—' }}</td>
-          <td><a href="{{ url_for('admin_user_detail', uid=u['id']) }}" class="btn btn-ghost btn-sm">View</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="empty-text">No users found.</p>
-  {% endif %}
+<div class="inst-card">
+  <div class="inst-card-body" style="padding:0;">
+    {% if users %}
+    <div style="overflow-x:auto;">
+      <table class="inst-table" id="user-table">
+        <thead>
+          <tr>
+            <th>Name / Email</th>
+            <th>Role</th>
+            <th>Tier</th>
+            <th>Status</th>
+            <th style="text-align:right;">Balance</th>
+            <th style="text-align:right;">Savings</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for uid, name, email, role, tier, status, balance, savings_balance, account_number, ifsc_code, branch, created_at in users %}
+          <tr>
+            <td>
+              <div>{{ name }}</div>
+              <div class="text-dim" style="font-size:12px;">{{ email or '—' }}</div>
+            </td>
+            <td>{{ role }}</td>
+            <td>{{ tier }}</td>
+            <td>
+              {% if status == 'active' %}
+                <span class="badge badge-green">{{ status }}</span>
+              {% elif status == 'frozen' %}
+                <span class="badge badge-red">{{ status }}</span>
+              {% elif status == 'kyc_pending' %}
+                <span class="badge badge-yellow">{{ status }}</span>
+              {% else %}
+                <span class="badge">{{ status }}</span>
+              {% endif %}
+            </td>
+            <td style="text-align:right;">{{ balance|inr }}</td>
+            <td style="text-align:right;">{{ savings_balance|inr }}</td>
+            <td>
+              <form method="POST" action="/admin/users/{{ uid }}/toggle-freeze" style="display:inline;">
+                {% if status == 'frozen' %}
+                  <button type="submit" class="btn btn-success btn-sm">Unfreeze</button>
+                {% else %}
+                  <button type="submit" class="btn btn-danger btn-sm">Freeze</button>
+                {% endif %}
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty-text">No users found</p>
+    {% endif %}
+  </div>
 </div>
+
+<script>
+document.getElementById('user-search').addEventListener('input', function() {
+  var q = this.value.toLowerCase();
+  var rows = document.querySelectorAll('#user-table tbody tr');
+  rows.forEach(function(row) {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
 {% endblock %}

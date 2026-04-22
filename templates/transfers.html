@@ -4,186 +4,228 @@
 
 {% block content %}
 {% if pending_cheques %}
-<div class="alert alert-info">You have {{ pending_cheques|length }} pending cheque(s) to approve.</div>
+<div class="alert alert-info mb-16">
+  You have {{ pending_cheques|length }} pending cheque{{ 's' if pending_cheques|length > 1 }} awaiting your approval.
+</div>
 {% endif %}
 
-<div class="tabs" id="tabBar">
-  <button class="tab active" onclick="showTab('self',this)">Self</button>
-  <button class="tab" onclick="showTab('bank',this)">Bank</button>
-  <button class="tab" onclick="showTab('upi',this)">UPI</button>
-  <button class="tab" onclick="showTab('intl',this)">International</button>
-  <button class="tab" onclick="showTab('neft',this)">NEFT</button>
-  <button class="tab" onclick="showTab('cheque',this)">Cheque</button>
+<div class="tabs mb-24" id="tabBar">
+  <button class="tab active" data-tab="self" onclick="showTab('self', this)">Self</button>
+  <button class="tab" data-tab="bank" onclick="showTab('bank', this)">Bank</button>
+  <button class="tab" data-tab="upi" onclick="showTab('upi', this)">UPI</button>
+  {% if flags.get('intl_transfers', true) %}
+  <button class="tab" data-tab="intl" onclick="showTab('intl', this)">International</button>
+  {% endif %}
+  <button class="tab" data-tab="neft" onclick="showTab('neft', this)">NEFT</button>
+  {% if flags.get('cheque_issuance', true) %}
+  <button class="tab" data-tab="cheque" onclick="showTab('cheque', this)">Cheque</button>
+  {% endif %}
 </div>
 
 <div class="grid grid-2">
   <div>
-    <div id="tab-self" class="tab-content active card">
-      <div class="card-title">Self Transfer</div>
-      <div class="balance-row mb-16">
-        <span>Wallet: <strong>₹{{ "%.2f"|format(user.balance) }}</strong></span>
-        <span>Savings: <strong>₹{{ "%.2f"|format(user.savings) }}</strong></span>
+    <!-- Self Transfer -->
+    <div id="tab-self" class="tab-content active">
+      <div class="inst-card">
+        <div class="inst-card-header"><span>Self Transfer</span></div>
+        <div class="inst-card-body">
+          <div class="balance-row mb-16">
+            <span>Wallet: <strong>{{ user.balance|inr }}</strong></span>
+            <span>Savings: <strong>{{ user.savings|inr }}</strong></span>
+          </div>
+          <form method="POST" action="{{ url_for('transfers') }}">
+            <input type="hidden" name="transfer_type" value="self">
+            <div class="form-group">
+              <label>Direction</label>
+              <select name="direction" required>
+                <option value="to_savings">Wallet → Savings</option>
+                <option value="to_wallet">Savings → Wallet</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Amount (₹)</label>
+              <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Transfer</button>
+          </form>
+        </div>
       </div>
-      <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="transfer_type" value="self">
-        <div class="form-group">
-          <label>Direction</label>
-          <select name="direction">
-            <option value="to_savings">Wallet → Savings</option>
-            <option value="to_wallet">Savings → Wallet</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Amount (₹)</label>
-          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Transfer</button>
-      </form>
     </div>
 
-    <div id="tab-bank" class="tab-content card">
-      <div class="card-title">Bank Transfer</div>
-      <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="transfer_type" value="bank">
-        <div class="form-group">
-          <label>Recipient (username or account number)</label>
-          <input type="text" name="recipient" id="bank-recipient" placeholder="Enter username or account number" required autocomplete="off">
-          <div id="recipient-verify" class="text-muted" style="font-size:12px;margin-top:4px"></div>
+    <!-- Bank Transfer -->
+    <div id="tab-bank" class="tab-content">
+      <div class="inst-card">
+        <div class="inst-card-header"><span>Bank Transfer</span></div>
+        <div class="inst-card-body">
+          <form method="POST" action="{{ url_for('transfers') }}">
+            <input type="hidden" name="transfer_type" value="bank">
+            <div class="form-group">
+              <label>Recipient Username</label>
+              <input type="text" name="recipient" placeholder="Enter username" required>
+            </div>
+            <div class="form-group">
+              <label>Amount (₹)</label>
+              <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Send</button>
+          </form>
         </div>
-        <div class="form-group">
-          <label>Amount (₹)</label>
-          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
-        </div>
-        <div class="info-box">Transfers above ₹5,00,000 require admin approval.</div>
-        <button type="submit" class="btn btn-primary btn-block">Send</button>
-      </form>
-    </div>
-
-    <div id="tab-upi" class="tab-content card">
-      <div class="card-title">UPI Transfer</div>
-      <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="transfer_type" value="upi">
-        <div class="form-group">
-          <label>UPI ID</label>
-          <input type="text" name="upi_id" placeholder="name@okbank" required>
-        </div>
-        <div class="form-group">
-          <label>Amount (₹)</label>
-          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Pay via UPI</button>
-      </form>
-    </div>
-
-    <div id="tab-intl" class="tab-content card">
-      <div class="card-title">International Transfer</div>
-      <div class="info-box mb-16">
-        Live rates:
-        {% for cur, rate in fx_rates.items() %}{{ cur }}/INR ₹{{ rate }}{% if not loop.last %} · {% endif %}{% endfor %}
-        · Flat fee + 1% spread applies.
       </div>
-      <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="transfer_type" value="international">
-        <div class="form-group">
-          <label>Currency</label>
-          <select name="currency">
-            {% for cur in fx_rates %}<option value="{{ cur }}">{{ cur }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Amount (foreign currency)</label>
-          <input type="number" name="foreign_amount" step="0.01" min="0.01" placeholder="0.00" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Send International</button>
-      </form>
     </div>
 
-    <div id="tab-neft" class="tab-content card">
-      <div class="card-title">NEFT Transfer</div>
-      <div class="info-box mb-16">₹5 processing fee applies.</div>
-      <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="transfer_type" value="neft">
-        <div class="form-group">
-          <label>Recipient (username or account number)</label>
-          <input type="text" name="recipient" placeholder="Enter username or account number" required>
+    <!-- UPI Transfer -->
+    <div id="tab-upi" class="tab-content">
+      <div class="inst-card">
+        <div class="inst-card-header"><span>UPI Transfer</span></div>
+        <div class="inst-card-body">
+          <form method="POST" action="{{ url_for('transfers') }}">
+            <input type="hidden" name="transfer_type" value="upi">
+            <div class="form-group">
+              <label>UPI ID</label>
+              <input type="text" name="upi_id" placeholder="e.g. name@okbank" required>
+            </div>
+            <div class="form-group">
+              <label>Amount (₹)</label>
+              <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Pay</button>
+          </form>
         </div>
-        <div class="form-group">
-          <label>Amount (₹)</label>
-          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Send via NEFT</button>
-      </form>
+      </div>
     </div>
 
-    <div id="tab-cheque" class="tab-content card">
-      <div class="card-title">Issue a Cheque</div>
-      <p class="text-muted mb-16" style="font-size:13px">Funds are held immediately and released when the payee approves.</p>
-      <form method="POST" class="mb-16">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="transfer_type" value="issue_cheque">
-        <div class="form-group">
-          <label>Payee Username</label>
-          <input type="text" name="receiver" placeholder="Recipient username" required>
+    <!-- International Transfer -->
+    {% if flags.get('intl_transfers', true) %}
+    <div id="tab-intl" class="tab-content">
+      <div class="inst-card">
+        <div class="inst-card-header"><span>International Transfer</span></div>
+        <div class="inst-card-body">
+          <div class="info-box mb-16">USD ₹83.42 · EUR ₹90.15 · GBP ₹105.30</div>
+          <form method="POST" action="{{ url_for('transfers') }}">
+            <input type="hidden" name="transfer_type" value="international">
+            <div class="form-group">
+              <label>Currency</label>
+              <select name="currency" required>
+                <option value="USD">USD — US Dollar</option>
+                <option value="EUR">EUR — Euro</option>
+                <option value="GBP">GBP — British Pound</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Amount (Foreign Currency)</label>
+              <input type="number" name="foreign_amount" step="0.01" min="0.01" placeholder="0.00" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Send</button>
+          </form>
         </div>
-        <div class="form-group">
-          <label>Amount (₹)</label>
-          <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- NEFT Transfer -->
+    <div id="tab-neft" class="tab-content">
+      <div class="inst-card">
+        <div class="inst-card-header"><span>NEFT Transfer</span></div>
+        <div class="inst-card-body">
+          <div class="info-box mb-16">₹5 processing fee applies to all NEFT transfers</div>
+          <form method="POST" action="{{ url_for('transfers') }}">
+            <input type="hidden" name="transfer_type" value="neft">
+            <div class="form-group">
+              <label>Recipient Username</label>
+              <input type="text" name="recipient" placeholder="Enter username" required>
+            </div>
+            <div class="form-group">
+              <label>Amount (₹)</label>
+              <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Send via NEFT</button>
+          </form>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Issue Cheque</button>
-      </form>
+      </div>
+    </div>
+
+    <!-- Cheque -->
+    {% if flags.get('cheque_issuance', true) %}
+    <div id="tab-cheque" class="tab-content">
+      <div class="inst-card">
+        <div class="inst-card-header"><span>Issue Cheque</span></div>
+        <div class="inst-card-body">
+          <form method="POST" action="{{ url_for('transfers') }}">
+            <input type="hidden" name="transfer_type" value="issue_cheque">
+            <div class="form-group">
+              <label>Payee Name</label>
+              <input type="text" name="receiver" placeholder="Recipient username" required>
+            </div>
+            <div class="form-group">
+              <label>Amount (₹)</label>
+              <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Issue Cheque</button>
+          </form>
+        </div>
+      </div>
 
       {% if pending_cheques %}
-      <hr class="divider">
-      <div class="card-title">Pending Cheques for You</div>
-      <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="transfer_type" value="approve_cheque">
-        <div class="form-group">
-          <label>Select Cheque</label>
-          <select name="cheque_id" required>
-            {% for ch in pending_cheques %}
-              <option value="{{ ch['id'] }}">{{ ch['cheque_number'] }} — ₹{{ "%.2f"|format(ch['amount']) }}</option>
-            {% endfor %}
-          </select>
+      <div class="inst-card" style="margin-top:16px;">
+        <div class="inst-card-header"><span>Approve Pending Cheques</span></div>
+        <div class="inst-card-body">
+          <form method="POST" action="{{ url_for('transfers') }}">
+            <input type="hidden" name="transfer_type" value="approve_cheque">
+            <div class="form-group">
+              <label>Select Cheque</label>
+              <select name="cheque_id" required>
+                {% for ch in pending_cheques %}
+                <option value="{{ ch[0] }}">Cheque #{{ ch[0] }} — {{ ch[2]|inr }} (from #{{ ch[1] }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <button type="submit" class="btn btn-success btn-block">Approve &amp; Collect</button>
+          </form>
         </div>
-        <button type="submit" class="btn btn-success btn-block">Approve &amp; Collect</button>
-      </form>
+      </div>
       {% endif %}
     </div>
+    {% endif %}
   </div>
 
-  <div class="card">
-    <div class="card-title">Recent Transfers</div>
-    {% if recent_transfers %}
-      <table class="table">
-        <thead><tr><th>To</th><th>Amount</th><th>Type</th><th>Ref</th><th>Date</th></tr></thead>
+  <!-- Recent Transfers -->
+  <div class="inst-card">
+    <div class="inst-card-header">
+      <span>Recent Transfers</span>
+    </div>
+    <div class="inst-card-body" style="padding:0;">
+      {% if recent_transfers %}
+      <table class="inst-table">
+        <thead>
+          <tr>
+            <th>To</th>
+            <th>Amount</th>
+            <th>Type</th>
+            <th>Date</th>
+          </tr>
+        </thead>
         <tbody>
           {% for t in recent_transfers %}
           <tr>
-            <td>{{ t['receiver_info'] }}</td>
-            <td class="amount">₹{{ "%.2f"|format(t['amount']) }}</td>
-            <td><span class="badge badge-blue">{{ t['type'] }}</span></td>
-            <td class="text-muted" style="font-size:11px;font-family:monospace">{{ t['reference_id'] or '—' }}</td>
-            <td class="text-muted">{{ t['timestamp'].strftime('%d %b') }}</td>
+            <td>{{ t[0] }}</td>
+            <td class="amount">{{ t[1]|inr }}</td>
+            <td><span class="badge badge-blue">{{ t[2] }}</span></td>
+            <td class="text-muted">{{ t[3]|datetimeformat }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
-    {% else %}
+      {% else %}
       <p class="empty-text">No transfers yet.</p>
-    {% endif %}
+      {% endif %}
+    </div>
   </div>
 </div>
 
 <script>
 function showTab(name, btn) {
-  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
+  document.querySelectorAll('.tab').forEach(function(el) { el.classList.remove('active'); });
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
 }

@@ -1,8 +1,6 @@
 .env
 __pycache__/
 *.pyc
-*.pyo
-bank.db
-.venv/
-venv/
-tp.txt
+*.db
+.claude/
+*.code-workspace

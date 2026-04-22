@@ -3,79 +3,206 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PRP Bank — Login</title>
+  <title>PRP Bank — Sign In</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="auth-body">
-  <div class="auth-wrapper">
-    <div class="auth-box">
-      <div class="auth-logo">
-        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-          <rect width="32" height="32" rx="8" fill="#3b82f6"/>
-          <path d="M7 22V14l9-6 9 6v8" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
-          <rect x="13" y="16" width="6" height="6" rx="1" fill="#fff"/>
-        </svg>
-        <div class="auth-logo-text">PRP Bank</div>
-        <div class="auth-logo-sub">Secure Digital Banking</div>
-      </div>
+  <div class="auth-container">
 
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">{{ message }}</div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
-
-      <form method="POST" id="login-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-group">
-          <label>Username</label>
-          <input type="text" name="name" id="login-name" placeholder="Enter your username" required autofocus>
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" name="password" id="login-pw" placeholder="Enter your password" required>
+    <div class="auth-left">
+      <div class="auth-left-content">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:32px;">
+          <div style="width:40px;height:40px;background:#3b82f6;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:18px;">P</div>
+          <span style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px;">PRP Bank</span>
         </div>
 
-        {% if personas %}
-        <div class="demo-creds-wrap">
-          <button type="button" class="btn btn-ghost btn-sm demo-toggle-btn" onclick="toggleDemoMenu()">
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-            Use demo credentials
-          </button>
-          <div class="demo-menu" id="demo-menu" style="display:none">
-            {% for p in personas %}
-            <button type="button" class="demo-persona-btn" onclick="fillCreds('{{ p.username }}', '{{ p.username }}')">
-              <span class="demo-persona-name">{{ p.username }}</span>
-              <span class="demo-persona-hint">{{ p.hint }}</span>
-              {% if p.role == 'ADMIN' %}<span class="badge badge-blue" style="font-size:10px;padding:1px 6px">admin</span>{% endif %}
-            </button>
-            {% endfor %}
+        <h2 class="auth-tagline">Online banking, built for daily use.</h2>
+        <p class="auth-description">
+          A full-featured demo banking platform with savings accounts, fixed deposits,
+          loans, UPI transfers, bill payments, card management, investment portfolios,
+          and a complete admin operations console.
+        </p>
+
+        <div class="auth-badges">
+          <div class="auth-badge">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" style="color:#3b82f6;flex-shrink:0;">
+              <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+            </svg>
+            <div>
+              <div style="font-weight:600;color:#fff;font-size:13px;">256-bit AES</div>
+              <div style="font-size:11px;color:var(--text-dim);">End-to-end encryption</div>
+            </div>
+          </div>
+          <div class="auth-badge">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" style="color:#3b82f6;flex-shrink:0;">
+              <path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clip-rule="evenodd"/>
+            </svg>
+            <div>
+              <div style="font-weight:600;color:#fff;font-size:13px;">2FA Enabled</div>
+              <div style="font-size:11px;color:var(--text-dim);">Multi-factor authentication</div>
+            </div>
+          </div>
+          <div class="auth-badge">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" style="color:#3b82f6;flex-shrink:0;">
+              <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+            </svg>
+            <div>
+              <div style="font-weight:600;color:#fff;font-size:13px;">218 Branches</div>
+              <div style="font-size:11px;color:var(--text-dim);">Nationwide presence</div>
+            </div>
           </div>
         </div>
-        {% endif %}
+      </div>
 
-        <button type="submit" class="btn btn-primary btn-block" style="margin-top:16px">Sign In</button>
-      </form>
-
-      <div class="auth-link">
-        Don't have an account? <a href="{{ url_for('register') }}">Create one</a>
+      <div class="auth-left-footer">
+        &copy; 2026 PRP Bank Ltd. All rights reserved.
       </div>
     </div>
+
+    <div class="auth-right">
+      <div class="auth-right-inner">
+
+        <div class="auth-mobile-logo">
+          <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:24px;">
+            <div style="width:32px;height:32px;background:#3b82f6;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;">P</div>
+            <span style="font-size:20px;font-weight:700;color:#fff;">PRP Bank</span>
+          </div>
+        </div>
+
+        <h1 class="auth-heading">Sign in to your account</h1>
+        <p class="auth-subtitle">Demo platform — pick a user to auto-fill credentials.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="" class="auth-form">
+          <div class="form-group">
+            <label for="customer_id">Customer ID</label>
+            <input type="text" id="customer_id" name="customer_id" required autocomplete="username" placeholder="Enter your customer ID">
+          </div>
+
+          <div class="form-group">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <label for="password">Password</label>
+              <a href="#" class="form-link">Forgot?</a>
+            </div>
+            <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="Enter your password">
+          </div>
+
+          <div class="form-group">
+            <label for="account_number">Account Number</label>
+            <input type="text" id="account_number" name="account_number" readonly class="input-readonly" tabindex="-1">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="ifsc_code">IFSC Code</label>
+              <input type="text" id="ifsc_code" name="ifsc_code" readonly class="input-readonly" tabindex="-1">
+            </div>
+            <div class="form-group">
+              <label for="branch">Branch</label>
+              <input type="text" id="branch" name="branch" readonly class="input-readonly" tabindex="-1">
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+
+          <p class="auth-security-note">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="color:var(--text-dim);flex-shrink:0;">
+              <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+            </svg>
+            Protected by 256-bit SSL encryption
+          </p>
+        </form>
+
+        <div class="demo-section">
+          <div class="demo-heading">Demo Credentials</div>
+          <div class="credential-cards">
+
+            <div class="credential-card"
+                 data-customer-id="Kahaan"
+                 data-password="B023B023"
+                 data-account="5001 0023 4821"
+                 data-ifsc="PRPB0001001"
+                 data-branch="Mumbai — Bandra West">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span class="role-badge role-user">USER</span>
+                <strong style="color:#fff;font-size:13px;">Kahaan</strong>
+              </div>
+              <p class="credential-desc">Retail customer — Savings, FD, loans, UPI transfers, investments.</p>
+              <div class="credential-details">
+                <span>ID: Kahaan</span> · <span>Acc: 5001 0023 4821</span><br>
+                <span>IFSC: PRPB0001001</span> · <span>Mumbai — Bandra West</span>
+              </div>
+            </div>
+
+            <div class="credential-card"
+                 data-customer-id="Zaid"
+                 data-password="B024B024"
+                 data-account="5001 0024 7702"
+                 data-ifsc="PRPB0001001"
+                 data-branch="Mumbai — Bandra West">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span class="role-badge role-admin">ADMIN</span>
+                <strong style="color:#fff;font-size:13px;">Zaid</strong>
+              </div>
+              <p class="credential-desc">Bank operator — Approvals, configuration, audit, feature flags.</p>
+              <div class="credential-details">
+                <span>ID: Zaid</span> · <span>Acc: 5001 0024 7702</span><br>
+                <span>IFSC: PRPB0001001</span> · <span>Mumbai — Bandra West</span>
+              </div>
+            </div>
+
+            <div class="credential-card"
+                 data-customer-id="Nishad"
+                 data-password="B025B025"
+                 data-account="5001 0025 9067"
+                 data-ifsc="PRPB0001002"
+                 data-branch="Mumbai — Andheri East">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span class="role-badge role-user">USER</span>
+                <strong style="color:#fff;font-size:13px;">Nishad</strong>
+              </div>
+              <p class="credential-desc">Retail customer — Savings account, bill payments.</p>
+              <div class="credential-details">
+                <span>ID: Nishad</span> · <span>Acc: 5001 0025 9067</span><br>
+                <span>IFSC: PRPB0001002</span> · <span>Mumbai — Andheri East</span>
+              </div>
+            </div>
+
+            <div class="credential-card"
+                 data-customer-id="Siddhesh"
+                 data-password="PRP01PRP01"
+                 data-account="5001 0001 1142"
+                 data-ifsc="PRPB0001001"
+                 data-branch="Mumbai — Bandra West">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span class="role-badge role-user">USER</span>
+                <strong style="color:#fff;font-size:13px;">Siddhesh</strong>
+              </div>
+              <p class="credential-desc">Retail customer — Cards, transfers, personal finance.</p>
+              <div class="credential-details">
+                <span>ID: Siddhesh</span> · <span>Acc: 5001 0001 1142</span><br>
+                <span>IFSC: PRPB0001001</span> · <span>Mumbai — Bandra West</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <p class="auth-footer-link">
+          Don't have an account? <a href="{{ url_for('register') }}">Open one now</a>
+        </p>
+      </div>
+    </div>
+
   </div>
 
-  <script>
-    function toggleDemoMenu() {
-      var m = document.getElementById('demo-menu');
-      m.style.display = m.style.display === 'none' ? 'block' : 'none';
-    }
-    function fillCreds(username, password) {
-      document.getElementById('login-name').value = username;
-      document.getElementById('login-pw').value = password;
-      document.getElementById('demo-menu').style.display = 'none';
-      document.getElementById('login-form').querySelector('[type=submit]').focus();
-    }
-  </script>
+  <script src="{{ url_for('static', filename='js/bank.js') }}"></script>
 </body>
 </html>
