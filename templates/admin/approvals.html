@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %} — Admin — Approvals{% endblock %}
+
+{% block page_title %}<h1>Admin — Approvals</h1>{% endblock %}
+
+{% block content %}
+<div class="inst-card">
+  <div class="inst-card-body" style="padding:0;">
+    {% if approvals %}
+    <div style="overflow-x:auto;">
+      <table class="inst-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Submitted By</th>
+            <th>Date</th>
+            <th style="text-align:right;">Amount</th>
+            <th>Detail</th>
+            <th>Risk</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for aid, kind, submitted_by, submitted_at, amount, detail, risk, status in approvals %}
+          <tr>
+            <td class="text-muted">{{ aid }}</td>
+            <td>{{ kind }}</td>
+            <td>{{ submitted_by }}</td>
+            <td class="text-muted">{{ submitted_at|datetimeformat }}</td>
+            <td style="text-align:right;">{{ amount|inr }}</td>
+            <td>{{ detail }}</td>
+            <td>
+              {% if risk == 'high' %}
+                <span class="badge badge-red">{{ risk }}</span>
+              {% elif risk == 'medium' %}
+                <span class="badge badge-yellow">{{ risk }}</span>
+              {% else %}
+                <span class="badge badge-green">{{ risk }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if status == 'pending' %}
+                <span class="badge badge-yellow">{{ status }}</span>
+              {% elif status == 'approved' %}
+                <span class="badge badge-green">{{ status }}</span>
+              {% elif status == 'rejected' %}
+                <span class="badge badge-red">{{ status }}</span>
+              {% else %}
+                <span class="badge">{{ status }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if status == 'pending' %}
+              <div style="display:flex;gap:6px;">
+                <form method="POST" action="/admin/approvals/{{ aid }}/approve">
+                  <button type="submit" class="btn btn-success btn-sm">Approve</button>
+                </form>
+                <form method="POST" action="/admin/approvals/{{ aid }}/reject">
+                  <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                </form>
+              </div>
+              {% else %}
+                <span class="text-dim">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty-text">No approvals</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

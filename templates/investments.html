@@ -4,77 +4,129 @@
 
 {% block content %}
 <div class="grid grid-2 mb-24">
-  <div class="card">
-    <div class="card-title">Safe Investments</div>
-    <div class="info-box mb-16">FD 5% · Bonds 7% · Mutual Fund 10%</div>
-    <form method="POST">
-      <input type="hidden" name="action" value="safe">
-      <div class="form-group">
-        <label>Type</label>
-        <select name="inv_type" required>
-          <option value="FD">Fixed Deposit (5%)</option>
-          <option value="BONDS">Bonds (7%)</option>
-          <option value="MF">Mutual Fund (10%)</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Amount (₹)</label>
-        <input type="number" name="amount" step="0.01" min="1" max="{{ user.balance }}" placeholder="0.00" required>
-      </div>
-      <div class="balance-chip">Available: ₹{{ "%.2f"|format(user.balance) }}</div>
-      <button type="submit" class="btn btn-primary btn-block">Invest</button>
-    </form>
+  <!-- Invest in FD / Bonds / MF -->
+  <div class="inst-card">
+    <div class="inst-card-header"><span>Invest in FD / Bonds / MF</span></div>
+    <div class="inst-card-body">
+      <form method="POST" action="{{ url_for('investments') }}">
+        <input type="hidden" name="action" value="invest">
+        <div class="form-group">
+          <label>Investment Type</label>
+          <select name="inv_type" required>
+            <option value="FD">Fixed Deposit (5%)</option>
+            <option value="BONDS">Bonds (7%)</option>
+            <option value="MF">Mutual Fund (10%)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" max="{{ user.balance }}" placeholder="0.00" required>
+        </div>
+        <div class="balance-chip mb-16">Available: {{ user.balance|inr }}</div>
+        <button type="submit" class="btn btn-primary btn-block">Invest</button>
+      </form>
+    </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">Stocks</div>
-    <div class="stock-list mb-16">
-      <div class="stock-row"><span>TechCorp</span><span class="stock-price">₹100</span></div>
-      <div class="stock-row"><span>GreenEnergy</span><span class="stock-price">₹200</span></div>
-      <div class="stock-row"><span>FinBank</span><span class="stock-price">₹150</span></div>
+  <!-- Buy Stocks -->
+  <div class="inst-card">
+    <div class="inst-card-header"><span>Buy Stocks</span></div>
+    <div class="inst-card-body">
+      {% if stocks %}
+      <div class="stock-list mb-16">
+        {% for s in stocks %}
+        <div class="stock-row">
+          <span>
+            <strong>{{ s[0] }}</strong>
+            <span class="text-muted" style="font-size:12px;margin-left:6px;">{{ s[1] }}</span>
+          </span>
+          <span>
+            <span class="stock-price">{{ s[2]|inr }}</span>
+            {% if s[3] >= 0 %}
+              <span style="color:var(--success);font-size:11px;margin-left:4px;">+{{ s[3] }}%</span>
+            {% else %}
+              <span style="color:var(--danger);font-size:11px;margin-left:4px;">{{ s[3] }}%</span>
+            {% endif %}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <form method="POST" action="{{ url_for('investments') }}">
+        <input type="hidden" name="action" value="stock">
+        <div class="form-group">
+          <label>Stock</label>
+          <select name="stock" required>
+            {% for s in stocks %}
+            <option value="{{ s[0] }}">{{ s[0] }} — {{ s[1] }} ({{ s[2]|inr }}/share)</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Quantity</label>
+          <input type="number" name="qty" min="1" placeholder="1" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Buy Stock</button>
+      </form>
     </div>
-    <form method="POST">
-      <input type="hidden" name="action" value="stock">
-      <div class="form-group">
-        <label>Stock</label>
-        <select name="stock" required>
-          <option value="TechCorp">TechCorp — ₹100/share</option>
-          <option value="GreenEnergy">GreenEnergy — ₹200/share</option>
-          <option value="FinBank">FinBank — ₹150/share</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Quantity</label>
-        <input type="number" name="qty" min="1" placeholder="1" required>
-      </div>
-      <button type="submit" class="btn btn-primary btn-block">Buy Stock</button>
-    </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-title">Portfolio</div>
-  {% if investments %}
-    <table class="table">
-      <thead>
-        <tr><th>Type</th><th>Invested</th><th>Return</th><th>P&amp;L</th><th>Date</th></tr>
-      </thead>
-      <tbody>
-        {% for inv in investments %}
-        <tr>
-          <td><span class="badge badge-blue">{{ inv[0] }}</span></td>
-          <td class="amount">₹{{ "%.2f"|format(inv[1]) }}</td>
-          <td class="amount">₹{{ "%.2f"|format(inv[2]) }}</td>
-          <td class="amount {% if inv[2] >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
-            {% if inv[2] >= 0 %}+{% endif %}₹{{ "%.2f"|format(inv[2]) }}
-          </td>
-          <td class="text-muted">{{ inv[3][:10] }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="empty-text">No investments yet.</p>
-  {% endif %}
+<!-- Holdings Table -->
+<div class="inst-card">
+  <div class="inst-card-header"><span>Holdings</span></div>
+  <div class="inst-card-body" style="padding:0;">
+    {% if investments %}
+    <div style="overflow-x:auto;">
+      <table class="inst-table">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Shares</th>
+            <th>Avg Cost</th>
+            <th>Current Price</th>
+            <th>Value</th>
+            <th>Returns</th>
+            <th>Change %</th>
+            <th>Maturity</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in investments %}
+          <tr>
+            <td><strong>{{ inv[1] }}</strong></td>
+            <td>{{ inv[2] }}</td>
+            <td><span class="badge badge-blue">{{ inv[4] }}</span></td>
+            <td>{{ inv[5] }}</td>
+            <td class="amount">{{ inv[6]|inr }}</td>
+            <td class="amount">{{ inv[7]|inr }}</td>
+            <td class="amount">{{ inv[8]|inr }}</td>
+            <td>
+              {% if inv[9] >= 0 %}
+                <span class="amount" style="color:var(--success);">+{{ inv[9]|inr }}</span>
+              {% else %}
+                <span class="amount" style="color:var(--danger);">{{ inv[9]|inr }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if inv[10] >= 0 %}
+                <span style="color:var(--success);font-weight:600;">+{{ inv[10] }}%</span>
+              {% else %}
+                <span style="color:var(--danger);font-weight:600;">{{ inv[10] }}%</span>
+              {% endif %}
+            </td>
+            <td class="text-muted">{% if inv[11] %}{{ inv[11]|dateformat }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty-text">No investments yet. Start investing above.</p>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

@@ -3,68 +3,63 @@
 {% block page_title %}<h1>Bills</h1>{% endblock %}
 
 {% block content %}
-<div class="grid grid-2 mb-24">
-  <div class="card">
-    <div class="card-title">Add a Bill</div>
-    <form method="POST">
-      <input type="hidden" name="action" value="add">
-      <div class="form-group">
-        <label>Bill Type</label>
-        <input type="text" name="bill_type" placeholder="e.g. Electricity, Mobile, Rent" required>
-      </div>
-      <div class="form-group">
-        <label>Amount (₹)</label>
-        <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>
-      </div>
-      <button type="submit" class="btn btn-primary btn-block">Add Bill</button>
-    </form>
+<div class="inst-card">
+  <div class="inst-card-header">
+    <span>All Bills</span>
+    <span class="balance-chip">Wallet: {{ user.balance|inr }}</span>
   </div>
-
-  <div class="card">
-    <div class="card-title">Pay a Bill</div>
-    {% set pending = bills | selectattr('4', 'equalto', 'PENDING') | list %}
-    {% if pending %}
-      <form method="POST">
-        <input type="hidden" name="action" value="pay">
-        <div class="form-group">
-          <label>Select Bill</label>
-          <select name="bill_id" required>
-            {% for bill in bills %}
-              {% if bill[4] == 'PENDING' %}
-                <option value="{{ bill[0] }}">{{ bill[1] }} — ₹{{ "%.2f"|format(bill[2]) }} (due {{ bill[3] }})</option>
+  <div class="inst-card-body" style="padding:0;">
+    {% if bills %}
+    <div style="overflow-x:auto;">
+      <table class="inst-table">
+        <thead>
+          <tr>
+            <th>Biller</th>
+            <th>Category</th>
+            <th>Amount</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bill in bills %}
+          <tr>
+            <td>{{ bill[1] }}</td>
+            <td class="text-muted">{{ bill[2] }}</td>
+            <td class="amount">{{ bill[3]|inr }}</td>
+            <td class="text-muted">{{ bill[4]|dateformat }}</td>
+            <td>
+              {% if bill[5] == 'PENDING' %}
+                <span class="badge badge-yellow">{{ bill[5] }}</span>
+              {% elif bill[5] == 'OVERDUE' %}
+                <span class="badge badge-red">{{ bill[5] }}</span>
+              {% elif bill[5] == 'PAID' %}
+                <span class="badge badge-green">{{ bill[5] }}</span>
+              {% elif bill[5] == 'SCHEDULED' %}
+                <span class="badge badge-blue">{{ bill[5] }}</span>
+              {% else %}
+                <span class="badge badge-blue">{{ bill[5] }}</span>
               {% endif %}
-            {% endfor %}
-          </select>
-        </div>
-        <div class="balance-chip">Wallet: ₹{{ "%.2f"|format(user.balance) }}</div>
-        <button type="submit" class="btn btn-success btn-block">Pay Bill</button>
-      </form>
+            </td>
+            <td>
+              {% if bill[5] in ('PENDING', 'OVERDUE') %}
+              <form method="POST" action="{{ url_for('bills') }}" style="display:inline;">
+                <input type="hidden" name="bill_id" value="{{ bill[0] }}">
+                <button type="submit" class="btn btn-success btn-sm">Pay</button>
+              </form>
+              {% else %}
+              <span class="text-dim">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
-      <p class="empty-text">No pending bills.</p>
+    <p class="empty-text">No bills found.</p>
     {% endif %}
   </div>
-</div>
-
-<div class="card">
-  <div class="card-title">All Bills</div>
-  {% if bills %}
-    <table class="table">
-      <thead>
-        <tr><th>Type</th><th>Amount</th><th>Due Date</th><th>Status</th></tr>
-      </thead>
-      <tbody>
-        {% for bill in bills %}
-        <tr>
-          <td>{{ bill[1] }}</td>
-          <td class="amount">₹{{ "%.2f"|format(bill[2]) }}</td>
-          <td class="text-muted">{{ bill[3] }}</td>
-          <td><span class="badge {% if bill[4] == 'PENDING' %}badge-yellow{% else %}badge-green{% endif %}">{{ bill[4] }}</span></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="empty-text">No bills found.</p>
-  {% endif %}
 </div>
 {% endblock %}

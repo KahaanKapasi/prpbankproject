@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %} — Admin — Seed / Reset{% endblock %}
+
+{% block page_title %}<h1>Admin — Seed / Reset</h1>{% endblock %}
+
+{% block content %}
+<div class="form-page">
+  <div class="inst-card">
+    <div class="inst-card-body">
+      <div class="seed-warning mb-24">
+        <strong>Warning:</strong> This will delete ALL data and re-create demo users and sample data.
+      </div>
+
+      <div class="mb-24">
+        <div class="card-title" style="margin-bottom:12px;">Demo Users</div>
+        <table class="inst-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Password</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Admin</td>
+              <td><span class="badge badge-red">ADMIN</span></td>
+              <td class="text-muted">admin</td>
+            </tr>
+            <tr>
+              <td>Alice</td>
+              <td><span class="badge badge-blue">USER</span></td>
+              <td class="text-muted">alice</td>
+            </tr>
+            <tr>
+              <td>Bob</td>
+              <td><span class="badge badge-blue">USER</span></td>
+              <td class="text-muted">bob</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <form method="POST" id="seed-form">
+        <button type="submit" class="seed-btn btn btn-danger btn-block" onclick="return confirm('Are you sure you want to reset ALL data? This cannot be undone.');">Reset All Demo Data</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

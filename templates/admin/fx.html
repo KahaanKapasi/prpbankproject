@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %} — Admin — FX Rates{% endblock %}
+
+{% block page_title %}<h1>Admin — FX Rates</h1>{% endblock %}
+
+{% block content %}
+<div class="inst-card">
+  <div class="inst-card-body" style="padding:0;">
+    {% if fx_rates %}
+    <table class="inst-table">
+      <thead>
+        <tr>
+          <th>Pair</th>
+          <th>Rate</th>
+          <th>Last Updated</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pair, rate, updated_at in fx_rates %}
+        <tr>
+          <td><strong>{{ pair }}</strong></td>
+          <td>{{ rate }}</td>
+          <td class="text-muted">{{ updated_at|datetimeformat }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty-text">No FX rates configured</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

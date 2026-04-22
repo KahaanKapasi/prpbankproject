@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %} — Admin — Configuration{% endblock %}
+
+{% block page_title %}<h1>Admin — Configuration</h1>{% endblock %}
+
+{% block content %}
+<div class="inst-card">
+  <div class="inst-card-body" style="padding:0;">
+    <div style="overflow-x:auto;">
+      <table class="inst-table">
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Description</th>
+            <th>Value</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for key, label, suffix, description in rows %}
+          <tr>
+            <td><strong>{{ label }}</strong></td>
+            <td class="text-muted">{{ description }}</td>
+            <td>
+              <span class="config-display" id="display-{{ key }}">{{ config[key] }}{{ ' ' + suffix if suffix else '' }}</span>
+              <form method="POST" action="/admin/configuration" class="config-input" id="edit-{{ key }}" style="display:none;gap:6px;align-items:center;">
+                <input type="hidden" name="key" value="{{ key }}">
+                <input type="text" name="value" value="{{ config[key] }}" class="config-input" style="width:120px;">
+                {% if suffix %}<span class="text-dim">{{ suffix }}</span>{% endif %}
+                <button type="submit" class="btn btn-success btn-sm config-save-btn">Save</button>
+                <button type="button" class="btn btn-ghost btn-sm config-cancel-btn" onclick="toggleEdit('{{ key }}', false)">Cancel</button>
+              </form>
+            </td>
+            <td>
+              <button type="button" class="btn btn-ghost btn-sm config-edit-btn" id="btn-{{ key }}" onclick="toggleEdit('{{ key }}', true)">Edit</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleEdit(key, show) {
+  document.getElementById('display-' + key).style.display = show ? 'none' : '';
+  document.getElementById('edit-' + key).style.display = show ? 'flex' : 'none';
+  document.getElementById('btn-' + key).style.display = show ? 'none' : '';
+}
+</script>
+{% endblock %}

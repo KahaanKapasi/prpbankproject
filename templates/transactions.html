@@ -1,38 +1,86 @@
 {% extends "base.html" %}
+
 {% block title %} — Transactions{% endblock %}
-{% block page_title %}<h1>Transaction History</h1>{% endblock %}
+
+{% block page_title %}<h1>Transactions</h1>{% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-title">All Transactions</div>
-  {% if history %}
-    <table class="table">
+<div class="mb-16">
+  <input type="text" class="table-search" id="txn-search" placeholder="Search transactions…" style="max-width:320px;">
+</div>
+
+<div class="inst-card">
+  {% if transactions %}
+  <div style="overflow-x:auto;">
+    <table class="inst-table" id="txn-table">
       <thead>
         <tr>
+          <th>Date</th>
           <th>Type</th>
-          <th>Amount</th>
-          <th>Date &amp; Time</th>
+          <th>Description</th>
+          <th>Category</th>
+          <th>Channel</th>
+          <th>Reference</th>
+          <th>Status</th>
+          <th style="text-align:right;">Amount</th>
         </tr>
       </thead>
       <tbody>
-        {% for txn in history %}
+        {% for txn in transactions %}
         <tr>
+          <td class="text-muted">{{ txn[9]|datetimeformat }}</td>
           <td>
-            <span class="badge
-              {% if txn[0] in ['DEPOSIT','LOAN_DISBURSEMENT','CHEQUE_RECEIVED'] %}badge-green
-              {% elif txn[0] in ['WITHDRAWAL','BILL_PAYMENT','TRANSFER_OUT','UPI_TRANSFER','NEFT_TRANSFER','INTL_TRANSFER'] %}badge-red
-              {% else %}badge-blue{% endif %}">
-              {{ txn[0].replace('_', ' ') }}
-            </span>
+            {% if txn[1] in ['DEPOSIT', 'TRANSFER_IN', 'CHEQUE_IN', 'LOAN_DISBURSEMENT'] %}
+              <span class="badge badge-green">{{ txn[1] }}</span>
+            {% elif txn[1] in ['WITHDRAWAL', 'TRANSFER_OUT', 'CHEQUE_OUT', 'LOAN_PAYMENT', 'BILL_PAYMENT'] %}
+              <span class="badge badge-red">{{ txn[1] }}</span>
+            {% elif txn[1] in ['SELF_TRANSFER', 'INVESTMENT'] %}
+              <span class="badge badge-blue">{{ txn[1] }}</span>
+            {% else %}
+              <span class="badge badge-yellow">{{ txn[1] }}</span>
+            {% endif %}
           </td>
-          <td class="amount">₹{{ "%.2f"|format(txn[1]) }}</td>
-          <td class="text-muted">{{ txn[2][:16] }}</td>
+          <td>{{ txn[3] }}</td>
+          <td class="text-muted">{{ txn[5] or '—' }}</td>
+          <td class="text-muted">{{ txn[6] or '—' }}</td>
+          <td class="text-muted" style="font-size:11px;">{{ txn[7] or '—' }}</td>
+          <td>
+            {% if txn[8] == 'completed' %}
+              <span class="badge badge-green">{{ txn[8] }}</span>
+            {% elif txn[8] == 'pending' %}
+              <span class="badge badge-yellow">{{ txn[8] }}</span>
+            {% elif txn[8] in ['flagged', 'failed'] %}
+              <span class="badge badge-red">{{ txn[8] }}</span>
+            {% else %}
+              <span class="badge badge-blue">{{ txn[8] }}</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;">
+            {% if txn[1] in ['DEPOSIT', 'TRANSFER_IN', 'CHEQUE_IN', 'LOAN_DISBURSEMENT'] %}
+              <span class="amount amount-positive">+{{ txn[2]|inr }}</span>
+            {% elif txn[1] in ['WITHDRAWAL', 'TRANSFER_OUT', 'CHEQUE_OUT', 'LOAN_PAYMENT', 'BILL_PAYMENT'] %}
+              <span class="amount amount-negative">-{{ txn[2]|inr }}</span>
+            {% else %}
+              <span class="amount">{{ txn[2]|inr }}</span>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+  </div>
   {% else %}
-    <p class="empty-text">No transactions found.</p>
+  <p class="empty-text">No transactions yet</p>
   {% endif %}
 </div>
+
+<script>
+document.getElementById('txn-search').addEventListener('input', function() {
+  var q = this.value.toLowerCase();
+  var rows = document.querySelectorAll('#txn-table tbody tr');
+  rows.forEach(function(row) {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
 {% endblock %}
