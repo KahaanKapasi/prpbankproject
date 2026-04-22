@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %} — Admin — Feature Flags{% endblock %}
+
+{% block page_title %}<h1>Admin — Feature Flags</h1>{% endblock %}
+
+{% block content %}
+<div class="inst-card">
+  <div class="inst-card-body" style="padding:0;">
+    {% if flags %}
+    <table class="inst-table">
+      <thead>
+        <tr>
+          <th>Flag</th>
+          <th>Description</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for key, label, description, enabled in flags %}
+        <tr>
+          <td><strong>{{ label }}</strong></td>
+          <td class="text-muted">{{ description }}</td>
+          <td>
+            {% if enabled %}
+              <span class="badge badge-green">Enabled</span>
+            {% else %}
+              <span class="badge badge-red">Disabled</span>
+            {% endif %}
+          </td>
+          <td>
+            <form method="POST" action="/admin/flags/{{ key }}/toggle" style="display:inline;">
+              <button type="submit" class="btn btn-ghost btn-sm flag-toggle">
+                {% if enabled %}Disable{% else %}Enable{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty-text">No feature flags configured</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

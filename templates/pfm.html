@@ -1,103 +1,94 @@
 {% extends "base.html" %}
-{% block title %} — Finance{% endblock %}
+
+{% block title %} — Personal Finance{% endblock %}
+
 {% block page_title %}<h1>Personal Finance</h1>{% endblock %}
 
 {% block content %}
-<div class="grid grid-2 mb-24">
-  <div class="card">
-    <div class="card-title">Set a Goal</div>
-    <form method="POST">
-      <input type="hidden" name="action" value="add_goal">
-      <div class="form-group">
-        <label>Goal Name</label>
-        <input type="text" name="goal_name" placeholder="e.g. New Laptop, Vacation" required>
-      </div>
-      <div class="form-group">
-        <label>Target Amount (₹)</label>
-        <input type="number" name="target_amount" step="0.01" min="1" placeholder="0.00" required>
-      </div>
-      <button type="submit" class="btn btn-primary btn-block">Create Goal</button>
-    </form>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Set Monthly Budget</div>
-    <form method="POST">
-      <input type="hidden" name="action" value="add_budget">
-      <div class="form-group">
-        <label>Category</label>
-        <input type="text" name="category" placeholder="e.g. Food, Travel, Shopping" required>
-      </div>
-      <div class="form-group">
-        <label>Monthly Limit (₹)</label>
-        <input type="number" name="limit_amount" step="0.01" min="1" placeholder="0.00" required>
-      </div>
-      <button type="submit" class="btn btn-primary btn-block">Set Budget</button>
-    </form>
-  </div>
-</div>
-
 <div class="grid grid-2">
-  <div class="card">
-    <div class="card-title">Savings Goals</div>
-    {% if goals %}
-      {% for goal in goals %}
-      <div class="goal-item mb-16">
-        <div class="flex-between mb-8">
-          <span class="goal-name">{{ goal[1] }}</span>
-          <span class="text-muted" style="font-size:13px">₹{{ "%.0f"|format(goal[3]) }} / ₹{{ "%.0f"|format(goal[2]) }}</span>
-        </div>
-        <div class="progress-bar">
-          <div class="progress-fill" style="width: {{ [[(goal[3]/goal[2]*100) if goal[2] > 0 else 0, 0]|max, 100]|min }}%"></div>
-        </div>
-        <div class="flex-between mt-8">
-          <span class="text-muted" style="font-size:12px">{{ "%.1f"|format((goal[3]/goal[2]*100) if goal[2] > 0 else 0) }}% complete</span>
-          <form method="POST" style="display:flex;gap:8px;align-items:center">
-            <input type="hidden" name="action" value="contribute">
-            <input type="hidden" name="goal_id" value="{{ goal[0] }}">
-            <input type="number" name="amount" step="0.01" min="1" placeholder="₹" style="width:90px;padding:6px 10px;font-size:13px">
-            <button type="submit" class="btn btn-primary btn-sm">Add</button>
+  <div class="inst-card">
+    <div class="inst-card-header">
+      <span>Budgets</span>
+    </div>
+    <div class="inst-card-body">
+      {% if budgets %}
+        {% for bid, category, monthly_limit, spent in budgets %}
+        <div class="mb-16">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;">
+            <strong>{{ category }}</strong>
+            <span class="text-muted">{{ spent|inr }} / {{ monthly_limit|inr }}</span>
+          </div>
+          {% set pct = (spent / monthly_limit * 100) if monthly_limit else 0 %}
+          <div class="progress-bar" style="margin-top:6px;">
+            <div class="progress-fill {% if pct > 100 %}danger{% elif pct > 80 %}warning{% endif %}" style="width:{{ [pct, 100]|min }}%;"></div>
+          </div>
+          <form method="POST" style="display:flex;gap:8px;margin-top:8px;">
+            <input type="hidden" name="action" value="update_budget">
+            <input type="hidden" name="budget_id" value="{{ bid }}">
+            <div class="form-group" style="flex:1;margin-bottom:0;">
+              <input type="number" name="monthly_limit" value="{{ monthly_limit }}" step="0.01" min="0" placeholder="Monthly limit">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Update</button>
           </form>
         </div>
-      </div>
-      {% endfor %}
-    {% else %}
-      <p class="empty-text">No goals yet. Create one!</p>
-    {% endif %}
+        {% if not loop.last %}<hr class="divider">{% endif %}
+        {% endfor %}
+      {% else %}
+        <p class="empty-text">No budgets configured</p>
+      {% endif %}
+    </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">Monthly Budgets</div>
-    {% if budgets %}
-      {% for b in budgets %}
-      <div class="goal-item mb-16">
-        <div class="flex-between mb-8">
-          <span class="goal-name">{{ b[1] }}</span>
-          <span class="text-muted" style="font-size:13px">₹{{ "%.0f"|format(b[3]) }} / ₹{{ "%.0f"|format(b[2]) }}</span>
+  <div class="inst-card">
+    <div class="inst-card-header">
+      <span>Goals</span>
+    </div>
+    <div class="inst-card-body">
+      {% if goals %}
+        {% for gid, goal_name, target_amount, saved_amount, deadline, status in goals %}
+        <div class="mb-16">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;">
+            <strong>{{ goal_name }}</strong>
+            <span class="text-muted">{{ saved_amount|inr }} / {{ target_amount|inr }}</span>
+          </div>
+          {% set pct = (saved_amount / target_amount * 100) if target_amount else 0 %}
+          <div class="progress-bar" style="margin-top:6px;">
+            <div class="progress-fill success" style="width:{{ [pct, 100]|min }}%;"></div>
+          </div>
+          <div class="text-dim" style="font-size:12px;margin-top:4px;">Deadline: {{ deadline|dateformat }}</div>
+          <form method="POST" style="display:flex;gap:8px;margin-top:8px;">
+            <input type="hidden" name="action" value="save_goal">
+            <input type="hidden" name="goal_id" value="{{ gid }}">
+            <div class="form-group" style="flex:1;margin-bottom:0;">
+              <input type="number" name="amount" step="0.01" min="1" placeholder="Amount to save">
+            </div>
+            <button type="submit" class="btn btn-success btn-sm">Save</button>
+          </form>
         </div>
-        <div class="progress-bar">
-          {% set pct = (b[3]/b[2]*100) if b[2] > 0 else 0 %}
-          <div class="progress-fill {% if pct > 90 %}danger{% elif pct > 70 %}warn-fill{% endif %}" style="width: {{ [pct, 100]|min }}%"></div>
-        </div>
-        <div class="text-muted mt-8" style="font-size:12px">
-          ₹{{ "%.2f"|format(b[2] - b[3]) }} remaining this month
-        </div>
-      </div>
-      {% endfor %}
-    {% else %}
-      <p class="empty-text">No budgets set.</p>
-    {% endif %}
+        {% if not loop.last %}<hr class="divider">{% endif %}
+        {% endfor %}
+      {% else %}
+        <p class="empty-text">No goals yet</p>
+      {% endif %}
 
-    <hr class="divider">
-    <div class="savings-summary">
-      <div class="summary-row">
-        <span class="summary-label">Wallet Balance</span>
-        <span class="summary-value">₹{{ "%.2f"|format(user.balance) }}</span>
-      </div>
-      <div class="summary-row">
-        <span class="summary-label">Savings Balance</span>
-        <span class="summary-value blue">₹{{ "%.2f"|format(user.savings) }}</span>
-      </div>
+      <hr class="divider">
+      <div class="card-title" style="margin-bottom:12px;">Add New Goal</div>
+      <form method="POST">
+        <input type="hidden" name="action" value="add_goal">
+        <div class="form-group">
+          <label for="goal_name">Goal Name</label>
+          <input type="text" id="goal_name" name="goal_name" placeholder="e.g. Emergency Fund" required>
+        </div>
+        <div class="form-group">
+          <label for="target_amount">Target Amount</label>
+          <input type="number" id="target_amount" name="target_amount" step="0.01" min="1" placeholder="Target amount" required>
+        </div>
+        <div class="form-group">
+          <label for="deadline">Deadline</label>
+          <input type="date" id="deadline" name="deadline" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Add Goal</button>
+      </form>
     </div>
   </div>
 </div>

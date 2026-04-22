@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %} — Admin — Stocks{% endblock %}
+
+{% block page_title %}<h1>Admin — Stocks</h1>{% endblock %}
+
+{% block content %}
+<div class="inst-card">
+  <div class="inst-card-body" style="padding:0;">
+    {% if stocks %}
+    <table class="inst-table">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Name</th>
+          <th style="text-align:right;">Price</th>
+          <th style="text-align:right;">Change %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for symbol, name, price, change_pct in stocks %}
+        <tr>
+          <td><strong>{{ symbol }}</strong></td>
+          <td>{{ name }}</td>
+          <td style="text-align:right;">{{ price|inr }}</td>
+          <td style="text-align:right;">
+            {% if change_pct >= 0 %}
+              <span style="color:var(--success);">+{{ '%.2f'|format(change_pct) }}%</span>
+            {% else %}
+              <span style="color:var(--danger);">{{ '%.2f'|format(change_pct) }}%</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty-text">No stocks data</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

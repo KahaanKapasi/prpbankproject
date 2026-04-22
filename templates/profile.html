@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %} — Profile{% endblock %}
+
+{% block page_title %}<h1>Profile</h1>{% endblock %}
+
+{% block content %}
+<div class="form-page">
+  <div class="inst-card">
+    <div class="inst-card-header">
+      <span>Account Details</span>
+    </div>
+    <div class="inst-card-body">
+      <div class="summary-row">
+        <span class="summary-label">Name</span>
+        <span class="summary-value">{{ user.name }}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Email</span>
+        <span class="summary-value">{{ user.email or '—' }}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Role</span>
+        <span class="summary-value">
+          {% if user.role == 'ADMIN' %}
+            <span class="badge badge-red">{{ user.role }}</span>
+          {% else %}
+            <span class="badge badge-blue">{{ user.role }}</span>
+          {% endif %}
+        </span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Tier</span>
+        <span class="summary-value">{{ user.tier }}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Status</span>
+        <span class="summary-value">
+          {% if user.status == 'active' %}
+            <span class="badge badge-green">{{ user.status }}</span>
+          {% elif user.status == 'frozen' %}
+            <span class="badge badge-red">{{ user.status }}</span>
+          {% else %}
+            <span class="badge badge-yellow">{{ user.status }}</span>
+          {% endif %}
+        </span>
+      </div>
+
+      <hr class="divider">
+
+      <div class="summary-row">
+        <span class="summary-label">Account Number</span>
+        <span class="summary-value">{{ user.account_number }}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">IFSC Code</span>
+        <span class="summary-value">{{ user.ifsc_code }}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Branch</span>
+        <span class="summary-value">{{ user.branch }}</span>
+      </div>
+
+      <hr class="divider">
+
+      <div class="summary-row">
+        <span class="summary-label">Wallet Balance</span>
+        <span class="summary-value">{{ user.balance|inr }}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Savings Balance</span>
+        <span class="summary-value">{{ user.savings|inr }}</span>
+      </div>
+
+      <hr class="divider">
+
+      <div class="summary-row">
+        <span class="summary-label">Member Since</span>
+        <span class="summary-value">{{ user.created_at|datetimeformat }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

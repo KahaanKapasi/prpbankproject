@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %} — Admin — Audit Log{% endblock %}
+
+{% block page_title %}<h1>Admin — Audit Log</h1>{% endblock %}
+
+{% block content %}
+<div class="mb-16">
+  <input type="text" class="table-search" id="audit-search" placeholder="Search audit log…" style="max-width:320px;">
+</div>
+
+<div class="inst-card">
+  <div class="inst-card-body" style="padding:0;">
+    {% if audit %}
+    <div style="overflow-x:auto;">
+      <table class="inst-table" id="audit-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Timestamp</th>
+            <th>Actor</th>
+            <th>Action</th>
+            <th>Target</th>
+            <th>Meta</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for aid, ts, actor, action, target, meta in audit %}
+          <tr>
+            <td class="text-muted">{{ aid }}</td>
+            <td class="text-muted">{{ ts|datetimeformat }}</td>
+            <td>{{ actor }}</td>
+            <td>{{ action }}</td>
+            <td>{{ target }}</td>
+            <td class="text-dim" style="font-size:12px;">{{ meta or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty-text">No audit entries</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+document.getElementById('audit-search').addEventListener('input', function() {
+  var q = this.value.toLowerCase();
+  var rows = document.querySelectorAll('#audit-table tbody tr');
+  rows.forEach(function(row) {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

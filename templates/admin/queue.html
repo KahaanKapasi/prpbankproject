@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %} — Approval Queue{% endblock %}
+{% block page_title %}<h1>Approval Queue</h1>{% endblock %}
+
+{% block content %}
+<div class="tabs mb-24">
+  <a href="{{ url_for('admin_queue', type='LOAN') }}" class="tab {% if q_type == 'LOAN' %}active{% endif %}">Loans</a>
+  <a href="{{ url_for('admin_queue', type='TRANSFER') }}" class="tab {% if q_type == 'TRANSFER' %}active{% endif %}">Transfers</a>
+</div>
+
+<div class="card">
+  <div class="card-title">Pending {{ q_type | capitalize }} Approvals</div>
+  {% if items %}
+    <table class="table">
+      <thead><tr><th>ID</th><th>Requester</th><th>Amount</th><th>Reference</th><th>Submitted</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>#{{ item['id'] }}</td>
+          <td>{{ item['username'] or '—' }}</td>
+          <td class="amount">₹{{ "%.2f"|format(item['amount']) }}</td>
+          <td class="text-muted" style="font-size:11px;font-family:monospace">{{ item['reference_id'] or '—' }}</td>
+          <td class="text-muted">{{ item['created_at'].strftime('%d %b %H:%M') }}</td>
+          <td style="display:flex;gap:6px">
+            <form method="POST" action="{{ url_for('admin_queue_approve', item_id=item['id']) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-success btn-sm">Approve</button>
+            </form>
+            <form method="POST" action="{{ url_for('admin_queue_reject', item_id=item['id']) }}" style="display:flex;gap:6px">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="text" name="reason" placeholder="Rejection reason" required style="padding:4px 8px;font-size:12px;width:160px">
+              <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-text">No pending {{ q_type | lower }} approvals.</p>
+  {% endif %}
+</div>
+{% endblock %}
