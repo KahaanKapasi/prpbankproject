@@ -19,7 +19,6 @@
         <td class="text-muted">{{ row['updated_at'].strftime('%d %b %H:%M') if row['updated_at'] else '—' }}</td>
         <td>
           <form method="POST" action="{{ url_for('admin_config_update', key=row['key']) }}" style="display:flex;gap:6px">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="text" name="value" value="{{ row['value'] }}" style="width:120px;padding:4px 8px;font-size:13px">
             <button type="submit" class="btn btn-primary btn-sm">Save</button>
           </form>

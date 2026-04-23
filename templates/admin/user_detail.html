@@ -24,7 +24,6 @@
     <div style="display:flex;flex-direction:column;gap:12px">
       {% if target['status'] == 'ACTIVE' %}
       <form method="POST" action="{{ url_for('admin_freeze_user', uid=target['id']) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
           <label>Freeze Reason</label>
           <input type="text" name="reason" placeholder="Reason for freezing" required>
@@ -33,13 +32,11 @@
       </form>
       {% else %}
       <form method="POST" action="{{ url_for('admin_unfreeze_user', uid=target['id']) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-success btn-sm">Unfreeze Account</button>
       </form>
       {% endif %}
 
       <form method="POST" action="{{ url_for('admin_credit_user', uid=target['id']) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
           <label>Manual Credit (₹)</label>
           <input type="number" name="amount" step="0.01" min="1" placeholder="0.00" required>

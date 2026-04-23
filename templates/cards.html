@@ -35,22 +35,49 @@
 {% if cards %}
 <div class="cards-grid">
   {% for card in cards %}
-  <div>
+  <div class="card-tile" onclick="toggleCard(this, event)">
+    <!-- Card face — always visible -->
     <div class="card-visual{% if card[5] == 'BLOCKED' %} blocked{% endif %}">
-      <div class="card-bank">PRP BANK</div>
+      <div class="card-bank">PRP BANK &nbsp;·&nbsp; {{ card[2] }}</div>
       <div class="card-number">**** **** **** {{ card[4] }}</div>
       <div class="card-footer">
-        <span>{{ card[2] }}</span>
-        <span>{{ card[8] }}</span>
-        {% if card[5] == 'ACTIVE' %}
-          <span class="badge badge-green">{{ card[5] }}</span>
-        {% else %}
-          <span class="badge badge-red">{{ card[5] }}</span>
-        {% endif %}
+        <div>
+          <div style="font-size:9px;opacity:0.6;letter-spacing:0.05em;margin-bottom:2px;">EXPIRES</div>
+          <div>{{ card[8]|dateformat }}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:9px;opacity:0.6;letter-spacing:0.05em;margin-bottom:2px;">TYPE</div>
+          <div>{{ card[3] }}</div>
+        </div>
       </div>
     </div>
 
-    <div style="margin-top:10px;" class="flex-between">
+    <!-- Usage progress bar — always visible for credit cards -->
+    {% if card[3] == 'Credit' and card[6] > 0 %}
+    <div style="margin-top:8px;">
+      <div class="progress-bar">
+        <div class="progress-fill{% if card[7] / card[6] > 0.8 %} danger{% elif card[7] / card[6] > 0.5 %} warning{% else %} success{% endif %}"
+             style="width:{{ [((card[7] / card[6]) * 100)|round(1), 100]|min }}%"></div>
+      </div>
+      <div class="flex-between" style="margin-top:4px;">
+        <span class="text-dim" style="font-size:11px;">{{ card[7]|inr }} used</span>
+        <span class="text-dim" style="font-size:11px;">Limit {{ card[6]|inr }}</span>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Status badge — always visible -->
+    <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
+      {% if card[5] == 'ACTIVE' %}
+        <span class="badge badge-green">ACTIVE</span>
+      {% else %}
+        <span class="badge badge-red">{{ card[5] }}</span>
+      {% endif %}
+      <span class="text-dim" style="font-size:11px;">Tap to manage</span>
+    </div>
+
+    <!-- Actions — revealed on click -->
+    <div class="card-actions" onclick="event.stopPropagation()">
       <form method="POST" action="{{ url_for('cards') }}" style="display:inline;">
         <input type="hidden" name="action" value="toggle">
         <input type="hidden" name="card_id" value="{{ card[0] }}">
@@ -60,30 +87,26 @@
           <button type="submit" class="btn btn-success btn-sm">Activate</button>
         {% endif %}
       </form>
-
-      {% if card[3] == 'Credit' %}
-      <span class="balance-chip">
-        {{ card[7]|inr }} / {{ card[6]|inr }}
-      </span>
-      {% endif %}
+      <form method="POST" action="{{ url_for('cards') }}" style="display:inline;"
+            onsubmit="return confirm('Delete this card permanently?')">
+        <input type="hidden" name="action" value="delete">
+        <input type="hidden" name="card_id" value="{{ card[0] }}">
+        <button type="submit" class="btn btn-sm" style="background:var(--surface-2);border:1px solid var(--border);color:var(--text-muted);">Delete</button>
+      </form>
     </div>
-
-    {% if card[3] == 'Credit' %}
-    <div style="margin-top:8px;">
-      <div class="progress-bar">
-        <div class="progress-fill{% if card[7] / card[6] > 0.8 %} danger{% elif card[7] / card[6] > 0.5 %} warning{% endif %}"
-             style="width:{{ (card[7] / card[6] * 100)|round(1) }}%"></div>
-      </div>
-      <div class="flex-between" style="margin-top:4px;">
-        <span class="text-dim" style="font-size:11px;">Used</span>
-        <span class="text-dim" style="font-size:11px;">Limit: {{ card[6]|inr }}</span>
-      </div>
-    </div>
-    {% endif %}
   </div>
   {% endfor %}
 </div>
 {% else %}
 <p class="empty-text">No cards issued yet. Create one above.</p>
 {% endif %}
+
+<script>
+function toggleCard(tile, event) {
+  if (event.target.tagName === 'BUTTON' || event.target.tagName === 'INPUT') return;
+  var isOpen = tile.classList.contains('expanded');
+  document.querySelectorAll('.card-tile.expanded').forEach(function(t) { t.classList.remove('expanded'); });
+  if (!isOpen) tile.classList.add('expanded');
+}
+</script>
 {% endblock %}

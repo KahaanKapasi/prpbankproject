@@ -100,7 +100,7 @@
       <div class="inst-card">
         <div class="inst-card-header"><span>International Transfer</span></div>
         <div class="inst-card-body">
-          <div class="info-box mb-16">USD ₹83.42 · EUR ₹90.15 · GBP ₹105.30</div>
+          <div class="info-box mb-16">{{ fx_display }}</div>
           <form method="POST" action="{{ url_for('transfers') }}">
             <input type="hidden" name="transfer_type" value="international">
             <div class="form-group">
@@ -229,21 +229,5 @@ function showTab(name, btn) {
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
 }
-// Recipient name verification
-var verifyTimer;
-document.getElementById('bank-recipient').addEventListener('input', function() {
-  clearTimeout(verifyTimer);
-  var q = this.value.trim();
-  var el = document.getElementById('recipient-verify');
-  if (q.length < 2) { el.textContent = ''; return; }
-  verifyTimer = setTimeout(function() {
-    fetch('/api/lookup_user?q=' + encodeURIComponent(q))
-      .then(r => r.json())
-      .then(data => {
-        if (data) el.textContent = 'Sending to: ' + data.full_name + ' (A/C ending ' + data.account + ')';
-        else el.textContent = 'User not found.';
-      });
-  }, 400);
-});
 </script>
 {% endblock %}

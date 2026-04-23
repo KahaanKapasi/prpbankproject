@@ -23,11 +23,9 @@
           <td class="text-muted">{{ item['created_at'].strftime('%d %b %H:%M') }}</td>
           <td style="display:flex;gap:6px">
             <form method="POST" action="{{ url_for('admin_queue_approve', item_id=item['id']) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-success btn-sm">Approve</button>
             </form>
             <form method="POST" action="{{ url_for('admin_queue_reject', item_id=item['id']) }}" style="display:flex;gap:6px">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="text" name="reason" placeholder="Rejection reason" required style="padding:4px 8px;font-size:12px;width:160px">
               <button type="submit" class="btn btn-danger btn-sm">Reject</button>
             </form>

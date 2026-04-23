@@ -1,322 +1,334 @@
+#!/usr/bin/env python3
 """
-Seed script — truncates all tables and reinserts rich demo data.
-Run: python seed.py
+PRP Bank — Standalone Demo Data Seeder
+
+Usage:
+    python seed.py              # Idempotent seed (skip if Kahaan exists)
+    python seed.py --reset      # Wipe all data and re-seed
+    python seed.py --verify     # Print row counts per table
 """
 import os
+import sys
 import random
-import secrets
-from datetime import date, timedelta, datetime
-from decimal import Decimal
+from datetime import datetime, timedelta, date
 
-import bcrypt
-import psycopg2
-import psycopg2.extras
 from dotenv import load_dotenv
-
-from demo_personas import PERSONAS
+import psycopg2
+from werkzeug.security import generate_password_hash
 
 load_dotenv()
-
-DB_URL = (os.getenv("DATABASE_URL") or "").strip()
-
-
-def conn():
-    return psycopg2.connect(DB_URL, cursor_factory=psycopg2.extras.DictCursor)
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 
-def hpw(pw):
-    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+def get_conn():
+    return psycopg2.connect(DATABASE_URL)
 
 
-def acct():
-    return "PRPB" + str(random.randint(10000000, 99999999))
+def verify():
+    tables = [
+        "users", "transactions", "loans", "bills", "cards",
+        "investments", "goals", "budgets", "transfers", "cheques",
+        "approvals", "audit_log", "feature_flags", "config", "fx_rates", "stocks",
+    ]
+    conn = get_conn()
+    cur = conn.cursor()
+    print("\nRow counts:")
+    for t in tables:
+        cur.execute(f"SELECT COUNT(*) FROM {t}")
+        print(f"  {t:20s} {cur.fetchone()[0]}")
+    conn.close()
 
 
-def ref():
-    return secrets.token_hex(6).upper()
+def reset():
+    conn = get_conn()
+    cur = conn.cursor()
+    for t in [
+        "transfers", "cheques", "investments", "budgets", "goals",
+        "cards", "bills", "loans", "transactions", "approvals",
+        "audit_log", "feature_flags", "config", "fx_rates", "stocks", "users",
+    ]:
+        cur.execute(f"DELETE FROM {t}")
+    conn.commit()
+    conn.close()
+    print("All data cleared.")
 
 
-def days_ago(n, hour=10, minute=0):
-    d = datetime.now() - timedelta(days=n)
-    return d.replace(hour=hour, minute=minute, second=0, microsecond=0)
+def seed():
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM users WHERE name='Kahaan'")
+    if cur.fetchone()[0] > 0:
+        print("Data already seeded (Kahaan exists). Use --reset to wipe and re-seed.")
+        conn.close()
+        return
 
+    now = datetime.now()
 
-def main():
-    db = conn()
-    cur = db.cursor()
-
-    print("Truncating all tables...")
-    cur.execute("""
-        TRUNCATE TABLE audit_log, approval_queue, feature_flags, fx_rates, stocks, config,
-        cheques, transfers, budgets, goals, investments, cards, bills, loans,
-        transactions, users RESTART IDENTITY CASCADE
-    """)
-
-    print("Inserting users...")
+    # ── Users ──────────────────────────────────────────────────────────
+    user_rows = [
+        ("Kahaan",   generate_password_hash("B023B023"),   "kahaan@prpbank.in",
+         "USER",  "Premier",  "active", 85000,  150000,
+         "5001 0023 4821", "PRPB0001001", "Mumbai — Bandra West",  "BR001", now - timedelta(days=420)),
+        ("Zaid",     generate_password_hash("B024B024"),   "zaid@prpbank.in",
+         "ADMIN", "Private",  "active", 250000, 500000,
+         "5001 0024 7702", "PRPB0001001", "Mumbai — Bandra West",  "BR001", now - timedelta(days=900)),
+        ("Nishad",   generate_password_hash("B025B025"),   "nishad@prpbank.in",
+         "USER",  "Standard", "active", 48000,  75000,
+         "5001 0025 9067", "PRPB0001002", "Mumbai — Andheri East", "BR002", now - timedelta(days=120)),
+        ("Siddhesh", generate_password_hash("PRP01PRP01"), "siddhesh@prpbank.in",
+         "USER",  "Standard", "active", 120000, 200000,
+         "5001 0001 1142", "PRPB0001003", "Mumbai — Thane West",   "BR003", now - timedelta(days=60)),
+    ]
     user_ids = {}
-    for p in PERSONAS:
+    for u in user_rows:
         cur.execute(
-            """INSERT INTO users (username, full_name, email, phone, password_hash, balance, savings_balance,
-               account_number, role, status, kyc_status)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'ACTIVE','VERIFIED') RETURNING id""",
-            (p["username"], p["full_name"], p["email"], p["phone"],
-             hpw(p["password"]), p["wallet"], p["savings"], acct(), p["role"]),
+            """INSERT INTO users
+               (name,password,email,role,tier,status,balance,savings_balance,
+                account_number,ifsc_code,branch,branch_code,created_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+            u,
         )
-        user_ids[p["username"]] = cur.fetchone()[0]
+        user_ids[u[0]] = cur.fetchone()[0]
 
-    alice, bob, carol, dev, eve = (
-        user_ids["alice"], user_ids["bob"], user_ids["carol"],
-        user_ids["dev"], user_ids["eve"],
-    )
+    kid = user_ids["Kahaan"]
+    zid = user_ids["Zaid"]
+    nid = user_ids["Nishad"]
+    sid = user_ids["Siddhesh"]
 
-    print("Inserting config...")
-    defaults = [
-        ("loan_interest_rate", "10.5", "rates", "Annual loan interest rate (%)"),
-        ("fd_rate", "6.5", "rates", "Fixed deposit annual return (%)"),
-        ("bonds_rate", "7.5", "rates", "Bond annual return (%)"),
-        ("mf_rate", "11.0", "rates", "Mutual fund annual return (%)"),
-        ("neft_fee", "5.00", "fees", "NEFT flat fee (INR)"),
-        ("intl_flat_fee", "50.00", "fees", "International transfer flat fee (INR)"),
-        ("intl_spread_pct", "1.0", "fees", "International transfer spread (%)"),
-        ("daily_withdraw_limit", "50000", "limits", "Max daily withdrawal (INR)"),
-        ("high_value_threshold", "500000", "limits", "Amount requiring admin approval"),
-        ("bill_due_days", "7", "windows", "Days until bill due date"),
-        ("require_loan_approval", "true", "features", "Loans require admin approval"),
-        ("demo_mode", "true", "features", "Show demo-credentials panel on login"),
+    # ── Transactions ───────────────────────────────────────────────────
+    merchants = [
+        ("Salary — PRP Ltd",      "Income",         "NEFT",   75000),
+        ("Big Basket",            "Groceries",      "UPI",    -2340),
+        ("BPCL Petrol",           "Fuel",           "Card",   -1850),
+        ("Netflix India",         "Entertainment",  "Online", -649),
+        ("Zomato",                "Dining",         "UPI",    -520),
+        ("Ola",                   "Transport",      "Card",   -380),
+        ("MSEB Electricity",      "Utilities",      "Online", -2100),
+        ("Airtel Recharge",       "Telecom",        "UPI",    -599),
+        ("Flipkart",              "Shopping",       "Online", -3200),
+        ("Croma Electronics",     "Electronics",    "Card",   -7500),
+        ("IndiGo Airlines",       "Travel",         "Card",   -4890),
+        ("Chaayos",               "Dining",         "UPI",    -280),
+        ("Amazon Prime",          "Subscriptions",  "Online", -1499),
+        ("Uber",                  "Transport",      "Card",   -450),
+        ("DMart",                 "Groceries",      "UPI",    -1870),
+        ("IT Refund",             "Government",     "NEFT",   12400),
+        ("Zerodha MF",            "Investments",    "Online", -10000),
+        ("Rent — Bandra West",    "Housing",        "IMPS",   -25000),
+        ("Swiggy",                "Dining",         "UPI",    -660),
+        ("Myntra",                "Shopping",       "Online", -2100),
     ]
-    cur.executemany(
-        "INSERT INTO config (key,value,category,description) VALUES (%s,%s,%s,%s)",
-        defaults,
-    )
+    for i, (desc, cat, ch, base_amt) in enumerate(merchants):
+        for uid in [kid, nid, sid]:
+            amt    = base_amt + random.randint(-200, 200)
+            ts     = now - timedelta(days=i, hours=random.randint(0, 23))
+            ttype  = "DEPOSIT" if amt > 0 else "WITHDRAWAL"
+            if "Transfer" in cat or "Rent" in desc: ttype = "TRANSFER_OUT"
+            elif "Salary" in desc or "Refund" in desc: ttype = "DEPOSIT"
+            cur.execute(
+                """INSERT INTO transactions
+                   (user_id,type,amount,description,counterparty,category,channel,reference,status,timestamp)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (uid, ttype, abs(amt), desc, desc, cat, ch,
+                 f"REF{random.randint(100000,999999)}", "completed", ts),
+            )
 
-    print("Inserting FX rates...")
-    fx = [("USD","INR",83.45), ("EUR","INR",90.12), ("GBP","INR",105.60), ("AED","INR",22.70)]
-    cur.executemany("INSERT INTO fx_rates (base,quote,rate) VALUES (%s,%s,%s)", fx)
+    # Salary for Zaid too
+    for uid in [kid, zid]:
+        cur.execute(
+            """INSERT INTO transactions
+               (user_id,type,amount,description,counterparty,category,channel,reference,status,timestamp)
+               VALUES (%s,'DEPOSIT',75000,'Salary — PRP Ltd','PRP Ltd','Income','NEFT',%s,'completed',%s)""",
+            (uid, f"REF{random.randint(100000,999999)}", now - timedelta(days=1)),
+        )
 
-    print("Inserting stocks...")
-    stx = [
-        ("TechCorp","TechCorp Ltd",102.40,1.2),
-        ("GreenEnergy","GreenEnergy Ltd",198.75,-0.8),
-        ("FinBank","FinBank Ltd",154.10,0.5),
-        ("InfraBuild","InfraBuild Ltd",76.20,-1.5),
+    # ── Loans ──────────────────────────────────────────────────────────
+    loans_data = [
+        (kid, "Auto",     800000,  8.5,  60, 16423, 840000,  320000, 520000, "ACTIVE",  (now+timedelta(days=12)).date()),
+        (kid, "Home",    4500000,  8.25, 240, 38540, 4725000, 605000, 4120000, "ACTIVE", (now+timedelta(days=3)).date()),
+        (kid, "Personal", 200000, 11.5,  24,  9340, 210000,       0, 210000, "PENDING", (now+timedelta(days=30)).date()),
+        (nid, "Personal", 100000, 10.0,  12,  8792, 105000,   35000,  70000, "ACTIVE",  (now+timedelta(days=15)).date()),
     ]
-    cur.executemany("INSERT INTO stocks (symbol,name,price,day_change) VALUES (%s,%s,%s,%s)", stx)
+    for l in loans_data:
+        cur.execute(
+            """INSERT INTO loans
+               (user_id,loan_type,principal,interest_rate,term_months,emi,total_owed,amount_paid,outstanding,status,next_due_date)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            l,
+        )
 
-    print("Inserting feature flags...")
+    # ── Bills ──────────────────────────────────────────────────────────
+    bills_data = [
+        (kid, "MSEB Electricity",    "Utilities",     2840, (now+timedelta(days=2)).date(),  "PENDING"),
+        (kid, "Airtel Broadband",    "Internet",      1299, (now+timedelta(days=5)).date(),  "SCHEDULED"),
+        (kid, "HDFC Life Insurance", "Insurance",     4200, (now-timedelta(days=3)).date(),  "OVERDUE"),
+        (kid, "MCGM Water",          "Utilities",      680, (now+timedelta(days=12)).date(), "PENDING"),
+        (kid, "Amazon Prime",        "Subscriptions",  299, (now+timedelta(days=8)).date(),  "SCHEDULED"),
+        (nid, "Tata Power",          "Utilities",     1950, (now+timedelta(days=4)).date(),  "PENDING"),
+        (nid, "Jio Fiber",           "Internet",       999, (now-timedelta(days=1)).date(),  "OVERDUE"),
+        (sid, "BEST Electricity",    "Utilities",     2200, (now+timedelta(days=6)).date(),  "PENDING"),
+        (sid, "Netflix",             "Subscriptions",  649, (now+timedelta(days=10)).date(), "SCHEDULED"),
+    ]
+    for b in bills_data:
+        cur.execute(
+            "INSERT INTO bills (user_id,biller,category,amount,due_date,status) VALUES (%s,%s,%s,%s,%s,%s)",
+            b,
+        )
+
+    # ── Cards ──────────────────────────────────────────────────────────
+    cards_data = [
+        (kid, "4012 8888 8888 4821", "RuPay",      "Debit",  "4821", "ACTIVE",       0,     0, date(2027, 8, 1)),
+        (kid, "4916 3344 5566 1142", "Visa",        "Credit", "1142", "ACTIVE",  100000, 12450, date(2026, 11, 1)),
+        (kid, "5199 9988 7755 7702", "Mastercard",  "Credit", "7702", "BLOCKED",  50000,  3200, date(2025, 2, 1)),
+        (nid, "6521 0000 1111 9067", "RuPay",       "Debit",  "9067", "ACTIVE",       0,     0, date(2028, 3, 1)),
+        (sid, "4532 6677 8899 5501", "Visa",        "Debit",  "5501", "ACTIVE",       0,     0, date(2027, 6, 1)),
+        (sid, "5425 2334 3010 8832", "Mastercard",  "Credit", "8832", "ACTIVE",   75000,  8900, date(2027, 1, 1)),
+    ]
+    for c in cards_data:
+        cur.execute(
+            """INSERT INTO cards (user_id,card_number,brand,card_type,last4,status,card_limit,used,expiry_date)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            c,
+        )
+
+    # ── Investments ────────────────────────────────────────────────────
+    inv_data = [
+        (kid, "RELIANCE", "Reliance Industries", "Stock",       "Equity",  50, 2410, 2842, 142100, 21600,  0.82, None),
+        (kid, "TCS",      "Tata Consultancy Svcs","Stock",      "Equity",  20, 3280, 4120,  82400, 16800, -0.34, None),
+        (kid, "NIPPON-MF","Nippon India MF",      "Mutual Fund","MF",     200,   48,   62,  12400,  2800,  0.21, None),
+        (kid, "GSEC-2031","G-Sec Bond 2031",      "Bond",       "Bond",    10, 99800, 98400, 984000,-14000,-0.18, date(2031, 6, 15)),
+        (kid, "FD-12M",   "Fixed Deposit 12mo",   "FD",         "FD",       1,100000,100000,100000,     0,  0.00, (now+timedelta(days=220)).date()),
+        (sid, "INFY",     "Infosys",              "Stock",       "Equity",  30, 1500, 1684,  50520,  5520,  1.21, None),
+        (sid, "FD-24M",   "Fixed Deposit 24mo",   "FD",         "FD",       1,250000,250000,250000,     0,  0.00, (now+timedelta(days=540)).date()),
+    ]
+    for inv in inv_data:
+        cur.execute(
+            """INSERT INTO investments
+               (user_id,symbol,inv_name,inv_type,category,shares,avg_cost,price,amount,returns,change_pct,maturity)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            inv,
+        )
+
+    # ── Budgets ────────────────────────────────────────────────────────
+    budgets = [
+        (kid,"Groceries",12000,9640),(kid,"Dining",6000,7210),(kid,"Transport",4000,2840),
+        (kid,"Utilities",8000,6120),(kid,"Entertainment",3000,1380),(kid,"Shopping",10000,3720),
+        (sid,"Groceries",10000,6500),(sid,"Transport",3000,2100),(sid,"Dining",5000,4200),
+    ]
+    for b in budgets:
+        cur.execute("INSERT INTO budgets (user_id,category,monthly_limit,spent) VALUES (%s,%s,%s,%s)", b)
+
+    # ── Goals ──────────────────────────────────────────────────────────
+    goals = [
+        (kid,"Emergency Fund",  500000, 275000, (now+timedelta(days=180)).date(),"ACTIVE"),
+        (kid,"Home Down Payment",2000000,610000,(now+timedelta(days=540)).date(),"ACTIVE"),
+        (kid,"Goa Trip",         80000,  51200, (now+timedelta(days=120)).date(),"ACTIVE"),
+        (sid,"New Laptop",      150000,  45000, (now+timedelta(days=90)).date(), "ACTIVE"),
+    ]
+    for g in goals:
+        cur.execute(
+            "INSERT INTO goals (user_id,goal_name,target_amount,saved_amount,deadline,status) VALUES (%s,%s,%s,%s,%s,%s)",
+            g,
+        )
+
+    # ── Approvals ──────────────────────────────────────────────────────
+    approvals = [
+        ("transfer","Kahaan",   now-timedelta(hours=1),  600000,"International wire to HSBC Singapore · Rahul Mehta","high","pending"),
+        ("transfer","Siddhesh", now-timedelta(hours=3),  150000,"NEFT to HDFC Bank · Priya Sharma",                  "medium","pending"),
+        ("loan",    "Nishad",   now-timedelta(days=1,hours=2),5000000,"Home loan · 20-yr · 8.5% p.a.",             "medium","pending"),
+        ("card-limit","Kahaan", now-timedelta(hours=5),  500000,"Platinum Credit limit increase",                    "low","pending"),
+        ("transfer","Siddhesh", now-timedelta(days=2),    99000,"IMPS · PRP Capital",                                "high","pending"),
+    ]
+    for a in approvals:
+        cur.execute(
+            "INSERT INTO approvals (kind,submitted_by,submitted_at,amount,detail,risk,status) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            a,
+        )
+
+    # ── Audit Log ──────────────────────────────────────────────────────
+    audit = [
+        (now,                       "system",    "session.start",   "ops console",          None),
+        (now-timedelta(hours=1),    "Zaid",      "user.login",      "Zaid",                 None),
+        (now-timedelta(hours=3),    "system",    "rule.flag",       "txn high-value",        "₹6,00,000 SWIFT"),
+        (now-timedelta(days=1),     "Zaid",      "config.update",   "transfer_limit_daily",  "500000 → 750000"),
+        (now-timedelta(days=2,hours=5),"Zaid",   "approval.approve","apr_982",               "₹54,000 NEFT"),
+    ]
+    for a in audit:
+        cur.execute("INSERT INTO audit_log (ts,actor,action,target,meta) VALUES (%s,%s,%s,%s,%s)", a)
+
+    # ── Feature Flags ──────────────────────────────────────────────────
     flags = [
-        ("enable_international_transfers", True, "Allow international transfers"),
-        ("enable_cheques", True, "Allow cheque issuance"),
-        ("enable_loans", True, "Allow loan applications"),
-        ("enable_stocks", True, "Allow stock purchases"),
-        ("enable_neft", True, "Allow NEFT transfers"),
-        ("enable_bills", True, "Allow bill management"),
-        ("enable_investments", True, "Allow FD/Bonds/MF investments"),
+        ("intl_transfers",   "International Transfers",      "Allow SWIFT / international wires",           True),
+        ("investments",      "Investments Module",           "Show Investments section to users",           True),
+        ("loans_self_serve", "Self-Serve Loans",             "Users can apply for loans without RM",        True),
+        ("cheque_issuance",  "Cheque Issuance",              "Issue cheques (places temp fund hold)",       True),
+        ("high_value_review","High-Value Auto Review",       "Auto-route high-value transfers to approval", True),
+        ("name_verify",      "Recipient Name Verify",        "Live name verification on NEFT/IMPS",         True),
     ]
-    cur.executemany("INSERT INTO feature_flags (key,enabled,description) VALUES (%s,%s,%s)", flags)
-
-    def txn(uid, ttype, amount, desc, cat="", chan="", ref_id=None, ts=None):
+    for f in flags:
         cur.execute(
-            """INSERT INTO transactions (user_id,type,amount,description,category,channel,reference_id,timestamp)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (uid, ttype, amount, desc, cat, chan, ref_id or ref(), ts or days_ago(random.randint(1,60))),
+            "INSERT INTO feature_flags (key,label,description,enabled) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+            f,
         )
 
-    print("Seeding alice transactions...")
-    txn(alice, "DEPOSIT", 95000, "Salary credit", "income", "bank", ts=days_ago(58, 9, 0))
-    txn(alice, "DEPOSIT", 95000, "Salary credit", "income", "bank", ts=days_ago(28, 9, 0))
-    txn(alice, "WITHDRAWAL", 15000, "Rent payment", "expense", "online", ts=days_ago(55))
-    txn(alice, "UPI_TRANSFER", 2400, "Electricity bill", "bills", "upi", ts=days_ago(50))
-    txn(alice, "UPI_TRANSFER", 450, "Coffee — Cafe Coffee Day", "food", "upi", ts=days_ago(48))
-    txn(alice, "UPI_TRANSFER", 1850, "Grocery — BigBasket", "food", "upi", ts=days_ago(45))
-    txn(alice, "BILL_PAYMENT", 399, "Mobile bill", "bills", "online", ts=days_ago(40))
-    txn(alice, "UPI_TRANSFER", 3200, "Online shopping — Myntra", "shopping", "upi", ts=days_ago(38))
-    txn(alice, "WITHDRAWAL", 15000, "Rent payment", "expense", "online", ts=days_ago(25))
-    txn(alice, "UPI_TRANSFER", 1200, "Grocery — DMart", "food", "upi", ts=days_ago(20))
-    txn(alice, "UPI_TRANSFER", 800, "Restaurant — Zomato", "food", "upi", ts=days_ago(15))
-    txn(alice, "UPI_TRANSFER", 2800, "Shopping — Amazon", "shopping", "upi", ts=days_ago(12))
-    txn(alice, "GOAL_CONTRIBUTION", 5000, "Goa trip goal", "savings", ts=days_ago(10))
-    txn(alice, "INVESTMENT_PURCHASE", 25000, "FD investment", "investments", ts=days_ago(8))
-    txn(alice, "UPI_TRANSFER", 199, "Netflix subscription", "entertainment", "upi", ts=days_ago(5))
-    txn(alice, "BILL_PAYMENT", 999, "Internet bill", "bills", "online", ts=days_ago(3))
+    # ── Config ─────────────────────────────────────────────────────────
+    config = [
+        ("transfer_limit_daily","500000"),("transfer_fee_domestic","5"),
+        ("transfer_fee_international","500"),("high_value_threshold","500000"),
+        ("overdraft_fee","500"),("savings_rate","6.5"),
+        ("loan_rate_home","8.50"),("loan_rate_auto","9.50"),
+        ("loan_rate_personal","12.00"),("loan_rate_education","10.00"),
+    ]
+    for c in config:
+        cur.execute("INSERT INTO config (key,value) VALUES (%s,%s) ON CONFLICT DO NOTHING", c)
 
-    print("Seeding bob transactions...")
-    txn(bob, "DEPOSIT", 60000, "Salary credit", "income", "bank", ts=days_ago(58, 9, 0))
-    txn(bob, "LOAN_DISBURSEMENT", 200000, "Loan #1 disbursed", "income", ts=days_ago(50))
-    txn(bob, "LOAN_REPAYMENT", 30000, "Loan repayment", "expense", ts=days_ago(45))
-    txn(bob, "WITHDRAWAL", 12000, "Rent payment", "expense", ts=days_ago(42))
-    txn(bob, "LOAN_REPAYMENT", 30000, "Loan repayment", "expense", ts=days_ago(35))
-    txn(bob, "DEPOSIT", 60000, "Salary credit", "income", "bank", ts=days_ago(28, 9, 0))
-    txn(bob, "LOAN_REPAYMENT", 30000, "Loan repayment", "expense", ts=days_ago(20))
-    txn(bob, "UPI_TRANSFER", 1800, "Grocery", "food", "upi", ts=days_ago(15))
-    txn(bob, "LOAN_REPAYMENT", 30000, "Loan repayment", "expense", ts=days_ago(10))
-    txn(bob, "UPI_TRANSFER", 600, "Mobile recharge", "bills", "upi", ts=days_ago(5))
+    # ── FX Rates ───────────────────────────────────────────────────────
+    fx = [
+        ("USD/INR",83.42),("EUR/INR",90.15),("GBP/INR",105.30),
+        ("AED/INR",22.72),("SGD/INR",62.10),("JPY/INR",0.56),
+    ]
+    for pair, rate in fx:
+        cur.execute("INSERT INTO fx_rates (pair,rate) VALUES (%s,%s) ON CONFLICT DO NOTHING", (pair,rate))
 
-    print("Seeding carol transactions...")
-    txn(carol, "DEPOSIT", 200000, "Business income", "income", "bank", ts=days_ago(60, 9, 0))
-    txn(carol, "DEPOSIT", 200000, "Business income", "income", "bank", ts=days_ago(30, 9, 0))
-    txn(carol, "INVESTMENT_PURCHASE", 100000, "FD investment", "investments", ts=days_ago(55))
-    txn(carol, "INVESTMENT_PURCHASE", 150000, "Bonds investment", "investments", ts=days_ago(50))
-    txn(carol, "INVESTMENT_PURCHASE", 100000, "MF investment", "investments", ts=days_ago(45))
-    txn(carol, "STOCK_PURCHASE", 10240, "TechCorp 100 shares", "investments", ts=days_ago(40))
-    txn(carol, "STOCK_PURCHASE", 19875, "GreenEnergy 100 shares", "investments", ts=days_ago(35))
-    txn(carol, "STOCK_PURCHASE", 15410, "FinBank 100 shares", "investments", ts=days_ago(30))
-    txn(carol, "BILL_PAYMENT", 4200, "Electricity", "bills", ts=days_ago(20))
-    txn(carol, "UPI_TRANSFER", 2100, "Restaurant", "food", "upi", ts=days_ago(10))
-    txn(carol, "UPI_TRANSFER", 5800, "Shopping", "shopping", "upi", ts=days_ago(5))
+    # ── Stocks ─────────────────────────────────────────────────────────
+    stocks = [
+        ("RELIANCE","Reliance Industries",2842,0.82),
+        ("TCS",     "TCS",               4120,-0.34),
+        ("INFY",    "Infosys",           1684,1.21),
+        ("HDFCBANK","HDFC Bank",         1847,-0.92),
+        ("WIPRO",   "Wipro",              542,2.41),
+        ("ICICIBANK","ICICI Bank",       1284,0.18),
+    ]
+    for s in stocks:
+        cur.execute("INSERT INTO stocks (symbol,name,price,change_pct) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING", s)
 
-    print("Seeding loans...")
-    cur.execute(
-        """INSERT INTO loans (user_id, principal, interest_rate, tenure_months, emi, total_owed, amount_paid, status, purpose, next_due_date, timestamp)
-           VALUES (%s, 200000, 10.5, 24, 9268.17, 222436.08, 165000, 'ACTIVE', 'Home renovation', %s, %s)""",
-        (bob, date.today() + timedelta(days=5), days_ago(50)),
-    )
-    cur.execute(
-        """INSERT INTO loans (user_id, principal, interest_rate, tenure_months, emi, total_owed, amount_paid, status, purpose, timestamp)
-           VALUES (%s, 50000, 10.5, 12, 4408.14, 52897.68, 52897.68, 'CLEARED', 'Emergency', %s)""",
-        (bob, days_ago(200)),
-    )
-    cur.execute(
-        """INSERT INTO loans (user_id, principal, interest_rate, tenure_months, emi, total_owed, amount_paid, status, purpose, timestamp)
-           VALUES (%s, 500000, 10.5, 36, 16134.52, 580842.72, 0, 'PENDING_APPROVAL', 'Business expansion', %s) RETURNING id""",
-        (alice, days_ago(2)),
-    )
-    alice_loan_id = cur.fetchone()[0]
-    import json
-    cur.execute(
-        "INSERT INTO approval_queue (type, payload_json, requester_id, amount, reference_id, created_at) VALUES ('LOAN',%s,%s,%s,%s,%s)",
-        (json.dumps({"loan_id": alice_loan_id, "principal": "500000", "purpose": "Business expansion"}), alice, 500000, ref(), days_ago(2)),
-    )
-
-    print("Seeding bills...")
-    cur.execute(
-        "INSERT INTO bills (user_id,bill_type,amount,due_date,status,paid_at) VALUES (%s,'ELECTRICITY',2400,%s,'PAID',%s)",
-        (alice, date.today() - timedelta(days=30), days_ago(50)),
-    )
-    cur.execute(
-        "INSERT INTO bills (user_id,bill_type,amount,due_date,status,paid_at) VALUES (%s,'MOBILE',399,%s,'PAID',%s)",
-        (alice, date.today() - timedelta(days=15), days_ago(40)),
-    )
-    cur.execute(
-        "INSERT INTO bills (user_id,bill_type,amount,due_date,status) VALUES (%s,'INTERNET',999,%s,'PENDING')",
-        (alice, date.today() + timedelta(days=3)),
-    )
-    cur.execute(
-        "INSERT INTO bills (user_id,bill_type,amount,due_date,status) VALUES (%s,'DTH',350,%s,'OVERDUE')",
-        (alice, date.today() - timedelta(days=5)),
-    )
-    for btype, amt in [("ELECTRICITY", 3800), ("RENT", 18000), ("MOBILE", 599)]:
+    # ── Transfer History ───────────────────────────────────────────────
+    transfers = [
+        (kid,"Nishad (UPI)",       5000,"UPI","UPI",  f"UPI{random.randint(100000,999999)}", "COMPLETED",now-timedelta(days=3)),
+        (kid,"Siddhesh (IMPS)",   12000,"IMPS","IMPS",f"IMPS{random.randint(100000,999999)}","COMPLETED",now-timedelta(days=5)),
+        (sid,"Kahaan (NEFT)",      8000,"NEFT","NEFT",f"NEFT{random.randint(100000,999999)}","COMPLETED",now-timedelta(days=7)),
+        (nid,"Kahaan (UPI)",       3000,"UPI","UPI",  f"UPI{random.randint(100000,999999)}", "COMPLETED",now-timedelta(days=2)),
+    ]
+    for t in transfers:
         cur.execute(
-            "INSERT INTO bills (user_id,bill_type,amount,due_date,status) VALUES (%s,%s,%s,%s,'PENDING')",
-            (bob, btype, amt, date.today() + timedelta(days=random.randint(1, 10))),
-        )
-    cur.execute(
-        "INSERT INTO bills (user_id,bill_type,amount,due_date,status) VALUES (%s,'ELECTRICITY',4200,%s,'PENDING')",
-        (carol, date.today() + timedelta(days=7)),
-    )
-
-    print("Seeding cards...")
-    for uid, ctype, network, suffix in [
-        (alice, "DEBIT", "VISA", "4321"),
-        (bob, "DEBIT", "MASTERCARD", "5678"),
-        (bob, "CREDIT", "VISA", "9012"),
-        (carol, "DEBIT", "VISA", "1111"),
-        (carol, "CREDIT", "MASTERCARD", "2222"),
-        (carol, "VIRTUAL", "RUPAY", "3333"),
-    ]:
-        num = "4" + "".join([str(random.randint(0,9)) for _ in range(11)]) + suffix
-        cur.execute(
-            "INSERT INTO cards (user_id,card_number,holder_name,card_type,network,status,expiry_date) VALUES (%s,%s,(SELECT full_name FROM users WHERE id=%s),%s,%s,'ACTIVE','2030-12-31')",
-            (uid, num, uid, ctype, network),
-        )
-    # Bob's blocked credit
-    cur.execute("UPDATE cards SET status='BLOCKED' WHERE user_id=%s AND card_type='CREDIT'", (bob,))
-
-    print("Seeding investments...")
-    today = date.today()
-    for uid, itype, amt, qty, price, mat_days in [
-        (carol, "FD", 100000, 0, 0, 365),
-        (carol, "BONDS", 150000, 0, 0, 365),
-        (carol, "MF", 100000, 0, 0, 365),
-        (carol, "TechCorp", 10240, 100, 102.40, 0),
-        (carol, "GreenEnergy", 19875, 100, 198.75, 0),
-        (carol, "FinBank", 15410, 100, 154.10, 0),
-        (alice, "FD", 25000, 0, 0, 365),
-        (alice, "MF", 15000, 0, 0, 365),
-    ]:
-        safe = itype in ("FD", "BONDS", "MF")
-        rate_map = {"FD": 0.065, "BONDS": 0.075, "MF": 0.11}
-        if safe:
-            returns = round(amt * rate_map[itype], 2)
-            cur_val = amt
-            mat = today + timedelta(days=mat_days)
-        else:
-            returns = 0
-            cur_val = qty * price
-            mat = None
-        cur.execute(
-            "INSERT INTO investments (user_id,type,amount,quantity,unit_price_at_buy,returns,current_value,maturity_date,timestamp) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-            (uid, itype, amt, qty, price, returns, cur_val, mat, days_ago(random.randint(30,55))),
+            "INSERT INTO transfers (sender_id,receiver_info,amount,type,channel,reference,status,timestamp) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            t,
         )
 
-    print("Seeding goals...")
-    cur.execute(
-        "INSERT INTO goals (user_id,goal_name,target_amount,saved_amount,deadline) VALUES (%s,'Vacation to Goa',50000,32000,%s)",
-        (alice, today + timedelta(days=60)),
-    )
-    cur.execute(
-        "INSERT INTO goals (user_id,goal_name,target_amount,saved_amount) VALUES (%s,'Emergency Fund',100000,45000)",
-        (alice,),
-    )
-    cur.execute(
-        "INSERT INTO goals (user_id,goal_name,target_amount,saved_amount,deadline) VALUES (%s,'House Down Payment',2000000,850000,%s)",
-        (carol, today + timedelta(days=730)),
-    )
-
-    print("Seeding budgets...")
-    for uid, cat, limit, spent in [
-        (alice, "Food", 8000, 5400),
-        (alice, "Travel", 5000, 4800),
-        (alice, "Shopping", 6000, 6300),
-        (alice, "Entertainment", 3000, 450),
-    ]:
-        cur.execute(
-            "INSERT INTO budgets (user_id,category,monthly_limit,spent) VALUES (%s,%s,%s,%s)",
-            (uid, cat, limit, spent),
-        )
-
-    print("Seeding transfers...")
-    for sid, rinfo, amt, ttype in [
-        (alice, "bob", 5000, "BANK"),
-        (alice, "name@okaxis", 1200, "UPI"),
-        (bob, "alice", 3000, "NEFT"),
-        (carol, "USD", 50000, "INTERNATIONAL"),
-    ]:
-        cur.execute(
-            "INSERT INTO transfers (sender_id,receiver_info,amount,type,reference_id,timestamp) VALUES (%s,%s,%s,%s,%s,%s)",
-            (user_ids.get(sid, sid), rinfo, amt, ttype, ref(), days_ago(random.randint(5,30))),
-        )
-
-    print("Seeding pending cheque (bob → eve)...")
-    # Deduct from bob for the fund hold
-    cur.execute("UPDATE users SET balance=balance-15000 WHERE id=%s", (bob,))
-    cur.execute(
-        "INSERT INTO cheques (issuer_id,receiver_name,receiver_id,cheque_number,amount,funds_locked,status,issued_at) VALUES (%s,'eve',%s,%s,15000,TRUE,'PENDING',%s)",
-        (bob, eve, "CHQ" + str(random.randint(100000,999999)), days_ago(3)),
-    )
-
-    print("Seeding audit log...")
-    cur.execute(
-        "INSERT INTO audit_log (admin_id,action,target_type,target_id,before_json,after_json) VALUES (%s,'APPROVE_LOAN','loan',2,'PENDING_APPROVAL','ACTIVE')",
-        (user_ids["admin"],),
-    )
-
-    db.commit()
-    db.close()
-    print("Done! Seed complete.")
-    print("\nDemo credentials:")
-    for p in PERSONAS:
-        print(f"  {p['username']:10} / {p['password']:10} — {p['hint']}")
+    conn.commit()
+    conn.close()
+    print("Seed complete!")
+    print("  Kahaan   / B023B023  (USER)")
+    print("  Zaid     / B024B024  (ADMIN)")
+    print("  Nishad   / B025B025  (USER)")
+    print("  Siddhesh / PRP01PRP01 (USER)")
 
 
 if __name__ == "__main__":
-    main()
+    if "--verify" in sys.argv:
+        verify()
+    elif "--reset" in sys.argv:
+        reset()
+        seed()
+    else:
+        seed()

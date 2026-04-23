@@ -1,4 +1,5 @@
 import os
+import json
 import secrets
 import random
 from datetime import datetime, timedelta, date
@@ -23,52 +24,38 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
 
 db_url = (os.getenv("DATABASE_URL") or "").strip()
 
-DEMO_USERS = [
-    {
-        "name": "Kahaan",
-        "password": "B023B023",
-        "role": "USER",
-        "tier": "Premier",
-        "email": "kahaan@prpbank.in",
-        "account_number": "5001 0023 4821",
-        "ifsc_code": "PRPB0001001",
-        "branch": "Mumbai — Bandra West",
-        "description": "Retail customer — Savings, FD, loans, UPI transfers, investments.",
-    },
-    {
-        "name": "Zaid",
-        "password": "B024B024",
-        "role": "ADMIN",
-        "tier": "Private",
-        "email": "zaid@prpbank.in",
-        "account_number": "5001 0024 7702",
-        "ifsc_code": "PRPB0001001",
-        "branch": "Mumbai — Bandra West",
-        "description": "Bank operator — Approvals, configuration, audit, feature flags.",
-    },
-    {
-        "name": "Nishad",
-        "password": "B025B025",
-        "role": "USER",
-        "tier": "Standard",
-        "email": "nishad@prpbank.in",
-        "account_number": "5001 0025 9067",
-        "ifsc_code": "PRPB0001002",
-        "branch": "Mumbai — Andheri East",
-        "description": "Retail customer — Savings account, bill payments.",
-    },
-    {
-        "name": "Siddhesh",
-        "password": "PRP01PRP01",
-        "role": "USER",
-        "tier": "Standard",
-        "email": "siddhesh@prpbank.in",
-        "account_number": "5001 0001 1142",
-        "ifsc_code": "PRPB0001001",
-        "branch": "Mumbai — Bandra West",
-        "description": "Retail customer — Cards, transfers, personal finance.",
-    },
-]
+# Demo-only plaintext passwords — used exclusively to autofill the login quick-pick cards.
+DEMO_PASSWORDS = {
+    "Kahaan":   "B023B023",
+    "Zaid":     "B024B024",
+    "Nishad":   "B025B025",
+    "Siddhesh": "PRP01PRP01",
+}
+
+
+def get_demo_users():
+    """Return the first 4 users from the DB enriched with demo passwords."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT name, role, tier, account_number, ifsc_code,
+                          branch, branch_code, email
+                   FROM users ORDER BY id LIMIT 4"""
+            )
+            rows = cur.fetchall()
+        return [
+            {
+                "name": r[0], "role": r[1], "tier": r[2],
+                "account_number": r[3] or "", "ifsc_code": r[4] or "",
+                "branch": r[5] or "", "branch_code": r[6] or "",
+                "email": r[7] or "",
+                "password": DEMO_PASSWORDS.get(r[0], ""),
+            }
+            for r in rows
+        ]
+    except Exception:
+        return []
 
 
 # ── DB Helpers ────────────────────────────────────────────────────────────────
@@ -82,8 +69,6 @@ def get_db():
         conn.close()
 
 
-db_init()
-
 
 # ── User helpers ──────────────────────────────────────────────────────────────
 
@@ -93,7 +78,7 @@ def get_user(user_id):
         cur.execute(
             """SELECT id, name, email, role, tier, status, balance,
                       savings_balance, account_number, ifsc_code, branch,
-                      created_at
+                      branch_code, created_at
                FROM users WHERE id=%s""",
             (user_id,),
         )
@@ -105,7 +90,8 @@ def get_user(user_id):
             "balance": float(row[6] or 0),
             "savings": float(row[7] or 0),
             "account_number": row[8], "ifsc_code": row[9],
-            "branch": row[10], "created_at": row[11],
+            "branch": row[10], "branch_code": row[11],
+            "created_at": row[12],
         }
     return None
 
@@ -259,10 +245,17 @@ def inject_globals():
             flags = get_feature_flags()
         except Exception:
             pass
+
+    def csrf_token():
+        if "_csrf_token" not in session:
+            session["_csrf_token"] = secrets.token_hex(32)
+        return session["_csrf_token"]
+
     return {
         "session_role": session.get("role", ""),
         "session_name": session.get("user_name", ""),
         "flags": flags,
+        "csrf_token": csrf_token,
     }
 
 
@@ -301,9 +294,14 @@ def db_init():
                 account_number TEXT,
                 ifsc_code TEXT DEFAULT 'PRPB0001001',
                 branch TEXT DEFAULT 'Mumbai — Bandra West',
+                branch_code TEXT DEFAULT 'BR001',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Migration: add branch_code if it didn't exist before this version
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS branch_code TEXT DEFAULT 'BR001'"
+        )
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
@@ -490,6 +488,18 @@ def db_init():
             )
         """)
 
+        # Ensure loan-rate config keys exist (idempotent)
+        for key, val in [
+            ("loan_rate_home",       "8.50"),
+            ("loan_rate_auto",       "9.50"),
+            ("loan_rate_personal",   "12.00"),
+            ("loan_rate_education",  "10.00"),
+        ]:
+            cur.execute(
+                "INSERT INTO config (key, value) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                (key, val),
+            )
+
         conn.commit()
 
 
@@ -507,19 +517,19 @@ def seed_demo_data():
         user_rows = [
             ("Kahaan", generate_password_hash("B023B023"), "kahaan@prpbank.in",
              "USER", "Premier", "active", 85000, 150000,
-             "5001 0023 4821", "PRPB0001001", "Mumbai — Bandra West",
+             "5001 0023 4821", "PRPB0001001", "Mumbai — Bandra West", "BR001",
              now - timedelta(days=420)),
             ("Zaid", generate_password_hash("B024B024"), "zaid@prpbank.in",
              "ADMIN", "Private", "active", 250000, 500000,
-             "5001 0024 7702", "PRPB0001001", "Mumbai — Bandra West",
+             "5001 0024 7702", "PRPB0001001", "Mumbai — Bandra West", "BR001",
              now - timedelta(days=900)),
             ("Nishad", generate_password_hash("B025B025"), "nishad@prpbank.in",
              "USER", "Standard", "active", 48000, 75000,
-             "5001 0025 9067", "PRPB0001002", "Mumbai — Andheri East",
+             "5001 0025 9067", "PRPB0001002", "Mumbai — Andheri East", "BR002",
              now - timedelta(days=120)),
             ("Siddhesh", generate_password_hash("PRP01PRP01"), "siddhesh@prpbank.in",
              "USER", "Standard", "active", 120000, 200000,
-             "5001 0001 1142", "PRPB0001001", "Mumbai — Bandra West",
+             "5001 0001 1142", "PRPB0001003", "Mumbai — Thane West", "BR003",
              now - timedelta(days=60)),
         ]
 
@@ -528,8 +538,8 @@ def seed_demo_data():
             cur.execute(
                 """INSERT INTO users
                    (name, password, email, role, tier, status, balance,
-                    savings_balance, account_number, ifsc_code, branch, created_at)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    savings_balance, account_number, ifsc_code, branch, branch_code, created_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                    RETURNING id""",
                 u,
             )
@@ -793,9 +803,13 @@ def seed_demo_data():
             ("high_value_threshold", "500000"),
             ("overdraft_fee", "500"),
             ("savings_rate", "6.5"),
+            ("loan_rate_home", "8.50"),
+            ("loan_rate_auto", "9.50"),
+            ("loan_rate_personal", "12.00"),
+            ("loan_rate_education", "10.00"),
         ]
         for c in config_data:
-            cur.execute("INSERT INTO config (key, value) VALUES (%s,%s)", c)
+            cur.execute("INSERT INTO config (key, value) VALUES (%s,%s) ON CONFLICT DO NOTHING", c)
 
         fx_data = [
             ("USD/INR", 83.42), ("EUR/INR", 90.15), ("GBP/INR", 105.30),
@@ -878,7 +892,7 @@ def login():
 
         if not row or not check_password_hash(row[2], password):
             flash("Invalid credentials. Please try again.", "error")
-            return render_template("login.html", demo_users=DEMO_USERS)
+            return render_template("login.html", demo_users=get_demo_users())
 
         session["user_id"] = row[0]
         session["user_name"] = row[1]
@@ -888,7 +902,7 @@ def login():
             return redirect(url_for("admin_dashboard"))
         return redirect(url_for("dashboard"))
 
-    return render_template("login.html", demo_users=DEMO_USERS)
+    return render_template("login.html", demo_users=get_demo_users())
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -983,11 +997,17 @@ def dashboard():
         )
         cards = cur.fetchall()
 
+        cur.execute(
+            "SELECT COUNT(*) FROM cheques WHERE receiver_name=%s AND status='PENDING'",
+            (user["name"],),
+        )
+        pending_cheques = cur.fetchone()[0]
+
     return render_template(
         "dashboard.html", user=user, recent=recent,
         active_loans=active_loans, pending_bills=pending_bills,
         total_invested=total_invested, overdue_bills=overdue_bills,
-        cards=cards,
+        cards=cards, pending_cheques=pending_cheques,
     )
 
 
@@ -1197,8 +1217,12 @@ def transfers():
                     else:
                         currency = request.form.get("currency", "USD")
                         foreign_amount = float(request.form.get("foreign_amount", 0))
-                        rates = {"USD": 83.42, "EUR": 90.15, "GBP": 105.30}
-                        rate = rates.get(currency, 83.42)
+                        cur.execute(
+                            "SELECT rate FROM fx_rates WHERE pair=%s",
+                            (f"{currency}/INR",),
+                        )
+                        fx_row = cur.fetchone()
+                        rate = float(fx_row[0]) if fx_row else {"USD": 83.42, "EUR": 90.15, "GBP": 105.30}.get(currency, 83.42)
                         inr_amount = round(foreign_amount * rate, 2)
                         fee = float(cfg.get("transfer_fee_international", "500"))
                         total = inr_amount + fee
@@ -1345,11 +1369,21 @@ def transfers():
         )
         pending_cheques = cur.fetchall()
 
+        cur.execute("SELECT pair, rate FROM fx_rates WHERE pair IN ('USD/INR','EUR/INR','GBP/INR')")
+        fx_rows = {r[0]: float(r[1]) for r in cur.fetchall()}
+
+    fx_display = " · ".join([
+        f"USD ₹{fx_rows.get('USD/INR', 83.42):.2f}",
+        f"EUR ₹{fx_rows.get('EUR/INR', 90.15):.2f}",
+        f"GBP ₹{fx_rows.get('GBP/INR', 105.30):.2f}",
+    ])
+
     user = get_user(session["user_id"])
     return render_template(
         "transfers.html", user=user,
         recent_transfers=recent_transfers,
         pending_cheques=pending_cheques,
+        fx_display=fx_display,
     )
 
 
@@ -1368,32 +1402,58 @@ def loans():
                         flash("Self-serve loans are currently disabled. Contact your RM.", "error")
                     else:
                         principal = float(request.form.get("principal", 0))
+                        loan_type = request.form.get("loan_type", "Personal")
+                        term_months = int(request.form.get("term_months", 12))
                         if principal <= 0:
                             flash("Enter a valid loan amount.", "error")
+                        elif loan_type not in ("Home", "Auto", "Personal", "Education"):
+                            flash("Select a valid loan type.", "error")
+                        elif term_months not in (6, 12, 24, 36, 60):
+                            flash("Select a valid loan tenure.", "error")
                         else:
-                            rate = 5.0
-                            total = round(principal * (1 + rate / 100), 2)
-                            emi = round(total / 12, 2)
+                            cfg = get_config(conn)
+                            rate_key = f"loan_rate_{loan_type.lower()}"
+                            annual_rate = float(cfg.get(rate_key, "12.0"))
+                            monthly_rate = annual_rate / 12 / 100
+                            if monthly_rate > 0:
+                                emi = round(
+                                    principal * monthly_rate * (1 + monthly_rate) ** term_months
+                                    / ((1 + monthly_rate) ** term_months - 1),
+                                    2,
+                                )
+                            else:
+                                emi = round(principal / term_months, 2)
+                            total_owed = round(emi * term_months, 2)
                             cur.execute(
                                 """INSERT INTO loans
                                    (user_id, loan_type, principal, interest_rate, term_months,
                                     emi, total_owed, outstanding, status, next_due_date)
-                                   VALUES (%s,'Personal',%s,%s,12,%s,%s,%s,'ACTIVE',%s)""",
-                                (user["id"], principal, rate, emi, total, total,
+                                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'PENDING',%s)
+                                   RETURNING id""",
+                                (user["id"], loan_type, principal, annual_rate, term_months,
+                                 emi, total_owed, total_owed,
                                  (datetime.now() + timedelta(days=30)).date()),
                             )
+                            loan_id = cur.fetchone()[0]
+                            risk = "high" if principal >= 1000000 else "medium" if principal >= 100000 else "low"
+                            detail = json.dumps({
+                                "loan_id": loan_id, "loan_type": loan_type,
+                                "term_months": term_months, "rate": annual_rate,
+                                "emi": emi,
+                            })
                             cur.execute(
-                                "UPDATE users SET balance=balance+%s WHERE id=%s",
-                                (principal, user["id"]),
-                            )
-                            cur.execute(
-                                """INSERT INTO transactions
-                                   (user_id, type, amount, description, category, channel, reference, status)
-                                   VALUES (%s,'LOAN_DISBURSEMENT',%s,'Loan disbursement','Loan','Online',%s,'completed')""",
-                                (user["id"], principal, f"LN{random.randint(100000,999999)}"),
+                                """INSERT INTO approvals
+                                   (kind, submitted_by, amount, detail, risk, status)
+                                   VALUES ('loan', %s, %s, %s, %s, 'pending')""",
+                                (user["name"], principal, detail, risk),
                             )
                             conn.commit()
-                            flash(f"Loan of ₹{principal:,.2f} approved! Funds credited.", "success")
+                            flash(
+                                f"Loan application for ₹{principal:,.2f} submitted. "
+                                f"EMI: ₹{emi:,.2f}/month over {term_months} months. "
+                                f"Pending admin approval.",
+                                "info",
+                            )
 
                 elif action == "repay":
                     loan_id = int(request.form.get("loan_id", 0))
@@ -1449,8 +1509,16 @@ def loans():
             (user["id"],),
         )
         all_loans = cur.fetchall()
+        cfg = get_config(conn)
 
-    return render_template("loans.html", user=user, loans=all_loans)
+    loan_rates = {
+        "Home":      float(cfg.get("loan_rate_home", 8.5)),
+        "Auto":      float(cfg.get("loan_rate_auto", 9.5)),
+        "Personal":  float(cfg.get("loan_rate_personal", 12.0)),
+        "Education": float(cfg.get("loan_rate_education", 10.0)),
+    }
+
+    return render_template("loans.html", user=user, loans=all_loans, loan_rates=loan_rates)
 
 
 @app.route("/bills", methods=["GET", "POST"])
@@ -1537,6 +1605,22 @@ def cards():
                         cur.execute("UPDATE cards SET status=%s WHERE id=%s", (new_status, card_id))
                         conn.commit()
                         flash(f"Card {'blocked' if new_status == 'BLOCKED' else 'activated'}.", "success")
+
+                elif action == "delete":
+                    card_id = int(request.form.get("card_id", 0))
+                    cur.execute(
+                        "SELECT card_type, used FROM cards WHERE id=%s AND user_id=%s",
+                        (card_id, user["id"]),
+                    )
+                    row = cur.fetchone()
+                    if not row:
+                        flash("Card not found.", "error")
+                    elif row[0] == "Credit" and float(row[1] or 0) > 0:
+                        flash("Cannot delete a credit card with outstanding balance.", "error")
+                    else:
+                        cur.execute("DELETE FROM cards WHERE id=%s AND user_id=%s", (card_id, user["id"]))
+                        conn.commit()
+                        flash("Card removed.", "success")
             except Exception as e:
                 flash(f"Error: {e}", "error")
 
@@ -1593,7 +1677,6 @@ def investments():
                             (user["id"], amount, f"Invested in {inv_type}",
                              f"INV{random.randint(100000,999999)}"),
                         )
-                        add_txn(conn, user["id"], "INVESTMENT_PURCHASE", amount, f"{inv_type} investment", "investments")
                         conn.commit()
                         flash(f"₹{amount:,.2f} invested in {inv_type}! Expected return: ₹{ret:,.2f}", "success")
 
@@ -1830,9 +1913,40 @@ def admin_approvals():
 def admin_approve(aid):
     with get_db() as conn:
         cur = conn.cursor()
-        cur.execute("UPDATE approvals SET status='approved' WHERE id=%s", (aid,))
-        log_audit(conn, session.get("user_name", "admin"), "approval.approve",
-                  str(aid), None)
+        cur.execute("SELECT kind, detail FROM approvals WHERE id=%s", (aid,))
+        row = cur.fetchone()
+        if row:
+            kind, detail = row
+            cur.execute("UPDATE approvals SET status='approved' WHERE id=%s", (aid,))
+            if kind == "loan":
+                try:
+                    info = json.loads(detail or "{}")
+                    loan_id = info.get("loan_id")
+                    if loan_id:
+                        cur.execute(
+                            "SELECT user_id, principal FROM loans WHERE id=%s AND status='PENDING'",
+                            (loan_id,),
+                        )
+                        loan_row = cur.fetchone()
+                        if loan_row:
+                            uid, principal = loan_row
+                            cur.execute(
+                                "UPDATE loans SET status='ACTIVE', next_due_date=%s WHERE id=%s",
+                                ((datetime.now() + timedelta(days=30)).date(), loan_id),
+                            )
+                            cur.execute(
+                                "UPDATE users SET balance=balance+%s WHERE id=%s",
+                                (principal, uid),
+                            )
+                            cur.execute(
+                                """INSERT INTO transactions
+                                   (user_id, type, amount, description, category, channel, reference, status)
+                                   VALUES (%s,'LOAN_DISBURSEMENT',%s,'Loan disbursement','Loan','Online',%s,'completed')""",
+                                (uid, principal, f"LN{random.randint(100000,999999)}"),
+                            )
+                except Exception:
+                    pass
+        log_audit(conn, session.get("user_name", "admin"), "approval.approve", str(aid), None)
         conn.commit()
         flash("Approval granted.", "success")
     return redirect(url_for("admin_approvals"))
@@ -1979,7 +2093,8 @@ def api_login():
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 db_init()
-seed_demo_data()
+if os.getenv("AUTO_SEED", "1") == "1":
+    seed_demo_data()
 
 if __name__ == "__main__":
     app.run(debug=True)
