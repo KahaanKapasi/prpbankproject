@@ -36,18 +36,16 @@
                 <span class="badge badge-red">{{ bill[5] }}</span>
               {% elif bill[5] == 'PAID' %}
                 <span class="badge badge-green">{{ bill[5] }}</span>
-              {% elif bill[5] == 'SCHEDULED' %}
-                <span class="badge badge-blue">{{ bill[5] }}</span>
               {% else %}
                 <span class="badge badge-blue">{{ bill[5] }}</span>
               {% endif %}
             </td>
             <td>
               {% if bill[5] in ('PENDING', 'OVERDUE') %}
-              <form method="POST" action="{{ url_for('bills') }}" style="display:inline;">
-                <input type="hidden" name="bill_id" value="{{ bill[0] }}">
-                <button type="submit" class="btn btn-success btn-sm">Pay</button>
-              </form>
+              <button type="button" class="btn btn-success btn-sm"
+                      onclick="openPayModal({{ bill[0] }}, '{{ bill[1]|replace("'","\\'") }}', {{ bill[3] }})">
+                Pay
+              </button>
               {% else %}
               <span class="text-dim">—</span>
               {% endif %}
@@ -62,4 +60,40 @@
     {% endif %}
   </div>
 </div>
+
+<!-- Bill Pay Confirmation Modal -->
+<div class="bill-confirm-modal" id="payModal">
+  <div class="bill-confirm-box">
+    <h3>Confirm Payment</h3>
+    <div class="amount-display" id="modalAmount"></div>
+    <div class="biller-name" id="modalBiller"></div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:20px;">
+      This amount will be deducted from your wallet balance ({{ user.balance|inr }}).
+    </p>
+    <form method="POST" action="{{ url_for('bills') }}" id="payForm">
+      <input type="hidden" name="bill_id" id="modalBillId">
+      <div class="bill-confirm-actions">
+        <button type="submit" class="btn btn-success" style="flex:1;">Confirm Payment</button>
+        <button type="button" class="btn" style="flex:1;background:var(--surface-2);border:1px solid var(--border);"
+                onclick="closePayModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openPayModal(billId, biller, amount) {
+  document.getElementById('modalBillId').value = billId;
+  document.getElementById('modalBiller').textContent = biller;
+  var formatted = '₹' + parseFloat(amount).toLocaleString('en-IN', {minimumFractionDigits: 2});
+  document.getElementById('modalAmount').textContent = formatted;
+  document.getElementById('payModal').classList.add('active');
+}
+function closePayModal() {
+  document.getElementById('payModal').classList.remove('active');
+}
+document.getElementById('payModal').addEventListener('click', function(e) {
+  if (e.target === this) closePayModal();
+});
+</script>
 {% endblock %}

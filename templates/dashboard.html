@@ -5,10 +5,10 @@
 {% block page_title %}<h1>Dashboard</h1>{% endblock %}
 
 {% block content %}
-{% if pending_cheques > 0 or overdue_bills > 0 %}
+{% if pending_cheques > 0 or overdue_bills|length > 0 %}
 <div class="alert alert-info" style="margin-bottom:16px">
   {% if pending_cheques > 0 %}{{ pending_cheques }} pending cheque(s) awaiting your approval. {% endif %}
-  {% if overdue_bills > 0 %}{{ overdue_bills }} overdue bill(s) need attention.{% endif %}
+  {% if overdue_bills|length > 0 %}{{ overdue_bills|length }} overdue bill(s) need attention.{% endif %}
 </div>
 {% endif %}
 

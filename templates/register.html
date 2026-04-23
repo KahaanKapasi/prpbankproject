@@ -4,53 +4,46 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PRP Bank — Register</title>
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="auth-body">
-  <div class="auth-wrapper">
-    <div class="auth-box">
-      <div class="auth-logo">
-        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-          <rect width="32" height="32" rx="8" fill="#3b82f6"/>
-          <path d="M7 22V14l9-6 9 6v8" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
-          <rect x="13" y="16" width="6" height="6" rx="1" fill="#fff"/>
-        </svg>
-        <h2>PRP Bank</h2>
-        <p>Create your account</p>
+  <div style="width:100%;max-width:400px;padding:32px;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="display:inline-flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <div style="width:32px;height:32px;background:var(--text);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--bg);font-weight:700;font-size:14px;">P</div>
+        <span style="font-size:18px;font-weight:700;color:var(--text);">PRP Bank</span>
       </div>
+      <h1 style="font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px;">Create your account</h1>
+      <p style="font-size:13px;color:var(--text-muted);">Fill in your details to open a new account.</p>
+    </div>
 
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">{{ message }}</div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
 
-      <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-group">
-          <label>Full Name</label>
-          <input type="text" name="full_name" placeholder="Your full name" autofocus>
-        </div>
-        <div class="form-group">
-          <label for="name">Full Name</label>
-          <input type="text" id="name" name="name" placeholder="Enter your full name" required autofocus>
-        </div>
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input type="email" id="email" name="email" placeholder="Enter your email">
-        </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" name="password" placeholder="Create a password" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Create Account</button>
-      </form>
-
-      <div class="auth-footer">
-        Already have an account? <a href="{{ url_for('login') }}">Sign in</a>
+    <form method="POST">
+      <div class="form-group">
+        <label for="name" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px;">Full Name</label>
+        <input type="text" id="name" name="name" placeholder="Enter your full name" required autofocus>
       </div>
+      <div class="form-group">
+        <label for="email" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px;">Email</label>
+        <input type="email" id="email" name="email" placeholder="Enter your email">
+      </div>
+      <div class="form-group">
+        <label for="password" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px;">Password</label>
+        <input type="password" id="password" name="password" placeholder="Create a password" required>
+      </div>
+      <button type="submit" class="btn btn-block" style="background:var(--text);color:var(--bg);font-weight:600;font-size:13.5px;padding:10px 18px;border:none;border-radius:var(--radius);cursor:pointer;width:100%;">Create Account</button>
+    </form>
+
+    <div style="text-align:center;margin-top:18px;font-size:13px;color:var(--text-muted);">
+      Already have an account? <a href="{{ url_for('login') }}" style="color:var(--primary);font-weight:600;">Sign in</a>
     </div>
   </div>
 </body>
