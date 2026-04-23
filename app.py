@@ -14,6 +14,7 @@ from flask import (
     session, flash, jsonify,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
+import logging
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
