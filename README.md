@@ -168,7 +168,7 @@ python app.py
 
 ## Demo Video
 
-> 🎬 *Video link to be added*
+https://drive.google.com/drive/folders/1qDVdParmoSJtgBjjGZ4IvozLjsTrHVXE?usp=sharing
 
 ---
 
